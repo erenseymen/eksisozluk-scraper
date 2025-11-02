@@ -261,8 +261,19 @@ class EksisozlukScraper:
             return None
     
     def _find_last_page_from_pagination(self, soup: BeautifulSoup) -> Optional[int]:
-        """İlk sayfadaki pagination linklerinden son sayfa numarasını bulur"""
+        """İlk sayfadaki pagination'dan son sayfa numarasını bulur"""
         try:
+            # Öncelikle data-pagecount attribute'undan al
+            pagination_div = soup.find('div', class_='pager')
+            if pagination_div and pagination_div.get('data-pagecount'):
+                try:
+                    pagecount = int(pagination_div.get('data-pagecount'))
+                    if pagecount > 0:
+                        return pagecount
+                except (ValueError, TypeError):
+                    pass
+            
+            # Fallback: pagination linklerinden bul
             pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
             max_page = 1
             for link in pagination_links:
@@ -343,38 +354,41 @@ class EksisozlukScraper:
                         title_id = alt_match.group(1)
                         print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
                 
-                # Pagination linklerinden formatı çıkar
-                # Öncelikle pagination linkini parse et
-                pagination_link = soup.find('a', href=re.compile(r'p=\d+'))
-                if pagination_link and pagination_link.get('href'):
-                    href = pagination_link['href']
-                    parsed_url = urlparse(href)
-                    params = parse_qs(parsed_url.query)
-                    
-                    if 'id' in params and 'slug' in params:
-                        title_id = params['id'][0]
-                        title_slug = params['slug'][0]
-                        pagination_format = f"{parsed_url.path}?p={{page}}&id={title_id}&slug={title_slug}"
-                        print(f"INFO: Pagination formatı bulundu: {pagination_format}", file=sys.stderr)
-                # Fallback: basit formatı kullan: /kopek--2167979?p=X
-                elif title_id:
+                # Basit format: /slug--id?p=X kullan (daha güvenilir)
+                # Pagination linklerindeki /basliklar/gundem formatı yanlış sonuçlara yol açıyor
+                if title_id:
                     pagination_format = f"/{title}--{title_id}?p={{page}}"
                     print(f"INFO: Pagination formatı bulundu (basit format): {pagination_format}", file=sys.stderr)
+                else:
+                    # Son çare: pagination linklerinden formatı çıkar
+                    pagination_link = soup.find('a', href=re.compile(r'p=\d+'))
+                    if pagination_link and pagination_link.get('href'):
+                        href = pagination_link['href']
+                        parsed_url = urlparse(href)
+                        params = parse_qs(parsed_url.query)
+                        
+                        if 'id' in params and 'slug' in params:
+                            title_id = params['id'][0]
+                            title_slug = params['slug'][0]
+                            pagination_format = f"{parsed_url.path}?p={{page}}&id={title_id}&slug={title_slug}"
+                            print(f"INFO: Pagination formatı bulundu: {pagination_format}", file=sys.stderr)
             
             # İlk sayfada pagination'dan son sayfa numarasını bul
-            if page == 1 and time_filter and not last_page:
+            if page == 1 and not last_page:
                 last_page = self._find_last_page_from_pagination(soup)
                 
                 if last_page:
                     print(f"INFO: Son sayfa bulundu: {last_page}", file=sys.stderr)
-                    # Son sayfadan başla
-                    page = last_page
-                    reverse_order = True
-                    print(f"INFO: Son sayfadan başlayarak geriye doğru taranacak (sayfa {last_page})", file=sys.stderr)
-                    # İlk sayfayı atla, direkt son sayfaya git
-                    continue
+                    
+                    # Zaman filtresi varsa son sayfadan başla
+                    if time_filter:
+                        page = last_page
+                        reverse_order = True
+                        print(f"INFO: Son sayfadan başlayarak geriye doğru taranacak (sayfa {last_page})", file=sys.stderr)
+                        # İlk sayfayı atla, direkt son sayfaya git
+                        continue
                 else:
-                    print(f"WARNING: Son sayfa bulunamadı, ilk sayfadan başlanıyor", file=sys.stderr)
+                    print(f"WARNING: Son sayfa bulunamadı", file=sys.stderr)
             
             # Entry'leri bul - çoklu selector stratejisi (önce entry'leri bul, sonra kontrol et)
             # ÖNEMLİ: Ekşi Sözlük'te entry'ler ul#entry-item-list içinde
@@ -456,6 +470,11 @@ class EksisozlukScraper:
                 # Normal sırada: sonraki sayfaya git
                 # Eğer bu sayfada entry yoksa dur (zaman filtresi yoksa)
                 if not page_entries and not time_filter:
+                    break
+                
+                # Son sayfa numarasından fazla gidebiliyor muyuz kontrol et
+                if last_page and page >= last_page:
+                    print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
                     break
                 
                 # Bir sonraki sayfaya geç
