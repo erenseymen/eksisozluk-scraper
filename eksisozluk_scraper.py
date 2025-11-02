@@ -180,9 +180,26 @@ class EksisozlukScraper:
             # Formatlar: "12.01.2024 15:30" veya "dün 15:30" veya "bugün 15:30" veya "20.02.1999 ~ 06.05.2007 01:16"
             date_str = date_str.strip()
             
-            # Tarih aralığı formatı: "20.02.1999 ~ 06.05.2007 01:16" - son tarihi al
+            # Tarih aralığı formatı: "26.10.2025 15:42 ~ 18:12" veya "20.02.1999 ~ 06.05.2007 01:16"
+            # İlk tarihi kullan (orijinal posting tarihi)
             if ' ~ ' in date_str:
-                date_str = date_str.split(' ~ ')[-1].strip()
+                # İlk kısmı al (orijinal tarih)
+                first_part = date_str.split(' ~ ')[0].strip()
+                # Eğer ilk kısımda tam tarih varsa onu kullan
+                date_pattern_with_time = r'(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})'
+                match = re.match(date_pattern_with_time, first_part)
+                if match:
+                    day, month, year, hour, minute = map(int, match.groups())
+                    return datetime(year, month, day, hour, minute)
+                # Sadece tarih varsa
+                date_pattern_date_only = r'(\d{1,2})\.(\d{1,2})\.(\d{4})'
+                match = re.match(date_pattern_date_only, first_part)
+                if match:
+                    day, month, year = map(int, match.groups())
+                    return datetime(year, month, day)
+                # Eğer ilk kısım parse edilemezse, ikinci kısmı dene
+                second_part = date_str.split(' ~ ')[-1].strip()
+                date_str = second_part
             
             # Bugün/dün kontrolü
             if date_str.startswith('bugün'):
@@ -449,10 +466,8 @@ class EksisozlukScraper:
                     if time_filter:
                         entry_dt = self._parse_datetime(entry.get('date', ''))
                         if not entry_dt:
-                            # Tarih parse edilemezse, filtreyi atlayalım
-                            entry['title'] = title
-                            page_entries.append(entry)
-                            all_entries_too_old = False
+                            # Tarih parse edilemezse, zaman filtresi aktifken entry'yi dahil etme
+                            # (güvenli tarafta kal: parse edilemeyen tarihleri hariç tut)
                             continue
                         
                         # Entry'nin zaman filtresi içinde olup olmadığını kontrol et
