@@ -60,10 +60,21 @@ class EksisozlukScraper:
                     return None
                 
                 response = self.session.get(url, timeout=10, allow_redirects=True)
+                
+                # 404 hatası sayfa yok demektir, retry yapma
+                if response.status_code == 404:
+                    return None
+                
                 response.raise_for_status()
                 return response
                 
             except Exception as e:
+                # HTTP hataları için kontrol et
+                if hasattr(e, 'response') and e.response is not None:
+                    if e.response.status_code == 404:
+                        # 404 hatası sayfa yok demektir, retry yapma
+                        return None
+                
                 attempt += 1
                 if attempt < self.max_retries:
                     print(f"WARNING: Request hatası (deneme {attempt}/{self.max_retries}): {e}", file=sys.stderr)
@@ -260,6 +271,7 @@ class EksisozlukScraper:
         """Bir başlıktaki tüm entry'leri scrape eder"""
         entries = []
         page = 1
+        title_id = None  # Topic ID'yi saklamak için
         
         print(f"Başlık scrape ediliyor: {title}", file=sys.stderr)
         
@@ -272,11 +284,38 @@ class EksisozlukScraper:
             if page == 1:
                 url = f"{self.BASE_URL}/{title}"
             else:
-                url = f"{self.BASE_URL}/{title}?p={page}"
+                # Topic ID'yi kullanarak pagination URL'i oluştur
+                if title_id:
+                    url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
+                else:
+                    url = f"{self.BASE_URL}/{title}?p={page}"
+            
+            # URL'i logla
+            print(f"INFO: Erişilen URL: {url}", file=sys.stderr)
             
             response = self._make_request(url)
             if not response:
+                # 404 veya başka bir hata - sayfa yok veya erişilemiyor
+                if page > 1:
+                    print(f"INFO: Sayfa {page} bulunamadı, scraping sonlandırılıyor", file=sys.stderr)
                 break
+            
+            # İlk sayfada topic ID'yi response URL'den çıkar (redirect olabilir)
+            if page == 1 and not title_id:
+                response_url = response.url
+                # URL formatı: https://eksisozluk.com/gauge--93891 veya https://eksisozluk.com/gauge--93891?p=1
+                # Title'ı escape et
+                escaped_title = re.escape(title)
+                title_id_match = re.search(rf'/{escaped_title}--(\d+)', response_url)
+                if title_id_match:
+                    title_id = title_id_match.group(1)
+                    print(f"INFO: Topic ID bulundu: {title_id}", file=sys.stderr)
+                else:
+                    # Alternatif: URL'de -- ile başlayan sayı ara
+                    alt_match = re.search(r'--(\d+)', response_url)
+                    if alt_match:
+                        title_id = alt_match.group(1)
+                        print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
@@ -357,7 +396,11 @@ class EksisozlukScraper:
                         
                         for start_page in start_pages:
                             print(f"INFO: Sayfa {start_page} kontrol ediliyor...", file=sys.stderr)
-                            test_url = f"{self.BASE_URL}/{title}?p={start_page}"
+                            if title_id:
+                                test_url = f"{self.BASE_URL}/{title}--{title_id}?p={start_page}"
+                            else:
+                                test_url = f"{self.BASE_URL}/{title}?p={start_page}"
+                            print(f"INFO: Erişilen URL: {test_url}", file=sys.stderr)
                             test_response = self._make_request(test_url)
                             if test_response:
                                 test_soup = BeautifulSoup(test_response.content, 'html.parser')
@@ -467,9 +510,11 @@ class EksisozlukScraper:
                     break
             else:
                 # Normal sırada: sonraki sayfaya git
-                next_link = soup.find('a', {'rel': 'next'}) or soup.find('a', string=re.compile(r'→|sonraki', re.I))
-                if not next_link or (not page_entries and not time_filter):
+                # Eğer bu sayfada entry yoksa dur (zaman filtresi yoksa)
+                if not page_entries and not time_filter:
                     break
+                
+                # Bir sonraki sayfaya geç
                 page += 1
             
             time.sleep(self.delay)
