@@ -220,49 +220,114 @@ class EksisozlukScraper:
         
         return None
     
-    def _find_last_page(self, soup: BeautifulSoup, title: str) -> Optional[int]:
+    def _find_last_page(self, soup: BeautifulSoup, title: str, title_id: Optional[str] = None, force_binary_search: bool = False) -> Optional[int]:
         """Son sayfa numarasını binary search ile bulur"""
         try:
-            # Önce pagination linklerini kontrol et
-            pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
+            # Eğer force_binary_search True ise, direkt binary search yap
+            if not force_binary_search:
+                # Önce pagination linklerini kontrol et
+                pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
+                
+                max_page_from_links = 1
+                for link in pagination_links:
+                    href = link.get('href', '')
+                    page_match = re.search(r'p=(\d+)', href)
+                    if page_match:
+                        page_num = int(page_match.group(1))
+                        max_page_from_links = max(max_page_from_links, page_num)
+                
+                # Eğer pagination linklerinden yeterince yüksek sayfa bulduysak, onu döndür
+                if max_page_from_links > 10:
+                    return max_page_from_links
             
-            max_page_from_links = 1
+            # Binary search ile son sayfayı bul
+            # Önce yüksek bir sayfanın var olup olmadığını kontrol et
+            print(f"INFO: Binary search başlatılıyor...", file=sys.stderr)
+            
+            # Üst limiti bulmak için yüksek sayfaları test et
+            test_pages = [10000, 5000, 2500, 1000, 500, 250, 100]
+            upper_limit = 1
+            
+            for test_page in test_pages:
+                if title_id:
+                    test_url = f"{self.BASE_URL}/{title}--{title_id}?p={test_page}"
+                else:
+                    test_url = f"{self.BASE_URL}/{title}?p={test_page}"
+                
+                print(f"INFO: Üst limit kontrolü için sayfa {test_page} test ediliyor...", file=sys.stderr)
+                response = self._make_request(test_url)
+                
+                if response:
+                    test_soup = BeautifulSoup(response.content, 'html.parser')
+                    test_entries = test_soup.find_all('li', {'data-id': True})
+                    
+                    if test_entries:
+                        upper_limit = test_page
+                        print(f"INFO: Sayfa {test_page} geçerli, üst limit olarak kullanılıyor", file=sys.stderr)
+                        break
+                    time.sleep(0.2)
+                else:
+                    time.sleep(0.2)
+            
+            # Binary search ile son sayfayı bul
+            low, high = 1, upper_limit * 2  # Biraz daha yüksek limit
+            last_valid_page = 1
+            
+            while low <= high:
+                mid = (low + high) // 2
+                # URL'i doğru formatta oluştur
+                if title_id:
+                    test_url = f"{self.BASE_URL}/{title}--{title_id}?p={mid}"
+                else:
+                    test_url = f"{self.BASE_URL}/{title}?p={mid}"
+                
+                response = self._make_request(test_url)
+                
+                if response:
+                    test_soup = BeautifulSoup(response.content, 'html.parser')
+                    test_entries = test_soup.find_all('li', {'data-id': True})
+                    
+                    if test_entries:
+                        last_valid_page = mid
+                        low = mid + 1
+                        time.sleep(0.2)  # Rate limiting
+                    else:
+                        high = mid - 1
+                else:
+                    high = mid - 1
+            
+            if last_valid_page > 1:
+                print(f"INFO: Binary search ile son sayfa bulundu: {last_valid_page}", file=sys.stderr)
+                return last_valid_page
+            
+            return None
+        except Exception as e:
+            print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
+            return None
+    
+    def _find_last_page_from_pagination(self, soup: BeautifulSoup) -> Optional[int]:
+        """İlk sayfadaki pagination linklerinden son sayfa numarasını bulur"""
+        try:
+            pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
+            max_page = 1
             for link in pagination_links:
                 href = link.get('href', '')
                 page_match = re.search(r'p=(\d+)', href)
                 if page_match:
                     page_num = int(page_match.group(1))
-                    max_page_from_links = max(max_page_from_links, page_num)
+                    max_page = max(max_page, page_num)
             
-            # Eğer pagination linklerinden sayfa bulamazsak, binary search yap
-            if max_page_from_links == 1:
-                # Binary search ile son sayfayı bul
-                low, high = 1, 1000  # Başlangıç aralığı
-                last_valid_page = 1
-                
-                while low <= high:
-                    mid = (low + high) // 2
-                    test_url = f"{self.BASE_URL}/{title}?p={mid}"
-                    response = self._make_request(test_url)
-                    
-                    if response:
-                        test_soup = BeautifulSoup(response.content, 'html.parser')
-                        test_entries = test_soup.find_all('li', {'data-id': True})
-                        
-                        if test_entries:
-                            last_valid_page = mid
-                            low = mid + 1
-                            time.sleep(0.5)  # Rate limiting
-                        else:
-                            high = mid - 1
-                    else:
-                        high = mid - 1
-                
-                if last_valid_page > 1:
-                    print(f"INFO: Binary search ile son sayfa bulundu: {last_valid_page}", file=sys.stderr)
-                    return last_valid_page
+            # Sayfa numaralarını içeren text içinde de ara
+            pagination_text = soup.get_text()
+            page_matches = re.findall(r'\b(\d+)\s*(?:sayfa|page)', pagination_text, re.I)
+            for match in page_matches:
+                try:
+                    page_num = int(match)
+                    max_page = max(max_page, page_num)
+                except ValueError:
+                    pass
             
-            return max_page_from_links if max_page_from_links > 1 else None
+            return max_page if max_page > 1 else None
         except Exception as e:
             print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
@@ -275,9 +340,9 @@ class EksisozlukScraper:
         
         print(f"Başlık scrape ediliyor: {title}", file=sys.stderr)
         
-        # Eğer zaman filtresi varsa, en yeni entry'ler genelde son sayfalarda
-        # reverse_order başlangıçta False, sadece gerekirse True yapılacak
+        # Eğer zaman filtresi varsa, son sayfadan başlayıp geriye doğru gideceğiz
         reverse_order = False
+        last_page = None  # Son sayfa numarası
         
         while True:
             # Başlık URL'i oluştur
@@ -319,6 +384,32 @@ class EksisozlukScraper:
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
+            # İlk sayfada pagination'dan son sayfa numarasını bul
+            if page == 1 and time_filter and not last_page:
+                last_page = self._find_last_page_from_pagination(soup)
+                
+                # Eğer pagination'dan bulamazsak veya bulunan sayfa çok düşükse, binary search ile bulmaya çalış
+                # (Pagination genellikle sadece ilk birkaç sayfayı gösterir, gerçek son sayfa çok daha yüksek olabilir)
+                if not last_page or (last_page and last_page <= 10):
+                    if last_page and last_page <= 10:
+                        print(f"INFO: Pagination'dan bulunan sayfa ({last_page}) çok düşük, binary search ile gerçek son sayfa aranıyor...", file=sys.stderr)
+                    else:
+                        print(f"INFO: Pagination'dan son sayfa bulunamadı, binary search ile aranıyor...", file=sys.stderr)
+                    binary_search_result = self._find_last_page(soup, title, title_id, force_binary_search=True)
+                    if binary_search_result:
+                        last_page = binary_search_result
+                
+                if last_page:
+                    print(f"INFO: Son sayfa bulundu: {last_page}", file=sys.stderr)
+                    # Son sayfadan başla
+                    page = last_page
+                    reverse_order = True
+                    print(f"INFO: Son sayfadan başlayarak geriye doğru taranacak (sayfa {last_page})", file=sys.stderr)
+                    # İlk sayfayı atla, direkt son sayfaya git
+                    continue
+                else:
+                    print(f"WARNING: Son sayfa bulunamadı, ilk sayfadan başlanıyor", file=sys.stderr)
+            
             # Entry'leri bul - çoklu selector stratejisi (önce entry'leri bul, sonra kontrol et)
             # ÖNEMLİ: Ekşi Sözlük'te entry'ler ul#entry-item-list içinde
             entry_elements = soup.find_all('li', {'data-id': True})
@@ -343,114 +434,6 @@ class EksisozlukScraper:
             
             if not entry_elements:
                 entry_elements = soup.find_all('div', {'class': 'content-item'})
-            
-            # Eğer ilk sayfadaysak ve zaman filtresi varsa, son sayfayı bul
-            if page == 1 and time_filter and not reverse_order and entry_elements:
-                # Önce pagination'dan son sayfayı bulmaya çalış (hızlı kontrol)
-                last_page = None
-                try:
-                    # Hızlı kontrol - sadece pagination linklerine bak, binary search yapma
-                    pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
-                    max_page_from_links = 1
-                    for link in pagination_links:
-                        href = link.get('href', '')
-                        page_match = re.search(r'p=(\d+)', href)
-                        if page_match:
-                            page_num = int(page_match.group(1))
-                            max_page_from_links = max(max_page_from_links, page_num)
-                    
-                    if max_page_from_links > 1:
-                        last_page = max_page_from_links
-                        print(f"INFO: Pagination'dan son sayfa bulundu: {last_page}", file=sys.stderr)
-                except Exception as e:
-                    pass
-                
-                # Eğer pagination sadece 2 sayfa gösteriyorsa ama entry'ler çok eskiyse,
-                # gerçek son sayfa çok daha yüksek olabilir - yüksek sayfaları dene
-                if last_page and last_page <= 10:
-                    # Pagination'dan bulunan sayfa çok düşükse, yüksek sayfaları dene
-                    print(f"INFO: Pagination sadece {last_page} sayfa gösteriyor, yüksek sayfalar deneniyor...", file=sys.stderr)
-                    last_page = None  # Yüksek sayfa kontrolü yap
-                
-                # Eğer pagination'dan bulamazsak veya çok düşükse, yüksek bir sayfadan başla
-                if not last_page or last_page == 1:
-                    # İlk sayfadaki entry'lerin hepsi eski mi kontrol et
-                    first_page_all_old = True
-                    for elem in entry_elements[:3]:  # İlk 3 entry'yi kontrol et
-                        test_entry = self._parse_entry(elem)
-                        if test_entry:
-                            entry_dt = self._parse_datetime(test_entry.get('date', ''))
-                            if entry_dt:
-                                entry_age = datetime.now() - entry_dt
-                                if entry_age <= time_filter:
-                                    first_page_all_old = False
-                                    break
-                    
-                    # Eğer ilk sayfa tamamen eskiyse, yüksek sayfalardan başla
-                    if first_page_all_old:
-                        print(f"INFO: İlk sayfa entry'leri çok eski, yeni entry'ler için yüksek sayfalardan başlanıyor...", file=sys.stderr)
-                        # Binary search benzeri yaklaşım: önce yüksek sayfaları dene
-                        start_pages = [1000, 500, 250, 100, 50, 25, 10, 5]
-                        found_recent = False
-                        found_page = None
-                        
-                        for start_page in start_pages:
-                            print(f"INFO: Sayfa {start_page} kontrol ediliyor...", file=sys.stderr)
-                            if title_id:
-                                test_url = f"{self.BASE_URL}/{title}--{title_id}?p={start_page}"
-                            else:
-                                test_url = f"{self.BASE_URL}/{title}?p={start_page}"
-                            print(f"INFO: Erişilen URL: {test_url}", file=sys.stderr)
-                            test_response = self._make_request(test_url)
-                            if test_response:
-                                test_soup = BeautifulSoup(test_response.content, 'html.parser')
-                                test_entries = test_soup.find_all('li', {'data-id': True})
-                                
-                                if test_entries:
-                                    print(f"INFO: Sayfa {start_page}'de {len(test_entries)} entry bulundu", file=sys.stderr)
-                                    # Bu sayfada yeni entry var mı kontrol et
-                                    for test_elem in test_entries[:5]:
-                                        test_entry = self._parse_entry(test_elem)
-                                        if test_entry:
-                                            test_entry_dt = self._parse_datetime(test_entry.get('date', ''))
-                                            if test_entry_dt:
-                                                test_entry_age = datetime.now() - test_entry_dt
-                                                date_text = test_entry.get('date', '')
-                                                print(f"INFO:   Entry tarihi: {date_text}, Yaş: {test_entry_age.days} gün", file=sys.stderr)
-                                                if test_entry_age <= time_filter:
-                                                    print(f"INFO: Sayfa {start_page}'de yeni entry'ler bulundu! (Entry: {date_text})", file=sys.stderr)
-                                                    found_page = start_page
-                                                    found_recent = True
-                                                    break
-                                    
-                                    if found_recent:
-                                        break
-                                    
-                                    # Eğer bu sayfada entry varsa ama hepsi eskiyse, daha düşük sayfa dene
-                                    # (çünkü entry'ler en eskiden en yeniye sıralı, yeni entry'ler daha yüksek sayfalarda)
-                                    if not found_recent:
-                                        # Sayfanın entry'lerinden birinin tarihini kontrol et
-                                        sample_entry = self._parse_entry(test_entries[0])
-                                        if sample_entry:
-                                            sample_dt = self._parse_datetime(sample_entry.get('date', ''))
-                                            if sample_dt:
-                                                sample_age = datetime.now() - sample_dt
-                                                if sample_age.days > 30:  # Eğer sayfa hala eski entry'ler içeriyorsa, daha yüksek sayfa dene
-                                                    continue
-                        
-                        if found_recent and found_page:
-                            page = found_page
-                            reverse_order = True
-                            print(f"INFO: Sayfa {page}'den geriye doğru tarama başlatılıyor", file=sys.stderr)
-                            continue
-                        else:
-                            print(f"INFO: Yeni entry bulunamadı (belki gerçekten yeni entry yok)", file=sys.stderr)
-                else:
-                    if last_page > 1:
-                        print(f"INFO: En yeni entry'ler için son sayfadan başlanıyor (sayfa {last_page})", file=sys.stderr)
-                        page = last_page
-                        reverse_order = True
-                        continue
             
             if not entry_elements:
                 print(f"INFO: Sayfa {page}'de entry bulunamadı, scraping sonlandırılıyor", file=sys.stderr)
@@ -489,18 +472,15 @@ class EksisozlukScraper:
             entries.extend(page_entries)
             print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
             
-            # Eğer zaman filtresi varsa ve bu sayfadaki tüm entry'ler çok eskiyse dur
-            if time_filter and all_entries_too_old and page_entries:
-                print(f"INFO: Zaman filtresi nedeniyle scraping durduruldu (sayfa {page}'deki tüm entry'ler çok eski)", file=sys.stderr)
-                # Ters sırada gidiyorsak, geriye doğru devam et
-                if reverse_order:
-                    page -= 1
-                    if page < 1:
-                        break
-                    time.sleep(self.delay)
-                    continue
-                else:
+            # Eğer zaman filtresi varsa ve bu sayfadaki TÜM entry'ler belirtilen süreyi aşmışsa dur
+            if time_filter and all_entries_too_old:
+                if entry_elements:
+                    # Sayfada entry var ama hepsi çok eski
+                    print(f"INFO: Zaman filtresi nedeniyle scraping durduruldu (sayfa {page}'deki tüm entry'ler belirtilen süreyi ({time_filter.days} gün) aştı)", file=sys.stderr)
                     break
+                else:
+                    # Sayfada entry yok, bir sonraki sayfaya geç
+                    pass
             
             # Sayfa navigasyonu
             if reverse_order:
