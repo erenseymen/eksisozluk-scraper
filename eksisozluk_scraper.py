@@ -237,85 +237,23 @@ class EksisozlukScraper:
         
         return None
     
-    def _find_last_page(self, soup: BeautifulSoup, title: str, title_id: Optional[str] = None, force_binary_search: bool = False) -> Optional[int]:
-        """Son sayfa numarasını binary search ile bulur"""
+    def _find_last_page(self, soup: BeautifulSoup, title: str, title_id: Optional[str] = None, pagination_format: Optional[str] = None) -> Optional[int]:
+        """Son sayfa numarasını pagination linklerinden bulur"""
         try:
-            # Eğer force_binary_search True ise, direkt binary search yap
-            if not force_binary_search:
-                # Önce pagination linklerini kontrol et
-                pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
-                
-                max_page_from_links = 1
-                for link in pagination_links:
-                    href = link.get('href', '')
-                    page_match = re.search(r'p=(\d+)', href)
-                    if page_match:
-                        page_num = int(page_match.group(1))
-                        max_page_from_links = max(max_page_from_links, page_num)
-                
-                # Eğer pagination linklerinden yeterince yüksek sayfa bulduysak, onu döndür
-                if max_page_from_links > 10:
-                    return max_page_from_links
+            # Pagination linklerini kontrol et
+            pagination_links = soup.find_all('a', href=re.compile(r'p=\d+'))
             
-            # Binary search ile son sayfayı bul
-            # Önce yüksek bir sayfanın var olup olmadığını kontrol et
-            print(f"INFO: Binary search başlatılıyor...", file=sys.stderr)
+            max_page_from_links = 1
+            for link in pagination_links:
+                href = link.get('href', '')
+                page_match = re.search(r'p=(\d+)', href)
+                if page_match:
+                    page_num = int(page_match.group(1))
+                    max_page_from_links = max(max_page_from_links, page_num)
             
-            # Üst limiti bulmak için yüksek sayfaları test et
-            test_pages = [10000, 5000, 2500, 1000, 500, 250, 100]
-            upper_limit = 1
-            
-            for test_page in test_pages:
-                if title_id:
-                    test_url = f"{self.BASE_URL}/{title}--{title_id}?p={test_page}"
-                else:
-                    test_url = f"{self.BASE_URL}/{title}?p={test_page}"
-                
-                print(f"INFO: Üst limit kontrolü için sayfa {test_page} test ediliyor...", file=sys.stderr)
-                response = self._make_request(test_url)
-                
-                if response:
-                    test_soup = BeautifulSoup(response.content, 'html.parser')
-                    test_entries = test_soup.find_all('li', {'data-id': True})
-                    
-                    if test_entries:
-                        upper_limit = test_page
-                        print(f"INFO: Sayfa {test_page} geçerli, üst limit olarak kullanılıyor", file=sys.stderr)
-                        break
-                    time.sleep(0.2)
-                else:
-                    time.sleep(0.2)
-            
-            # Binary search ile son sayfayı bul
-            low, high = 1, upper_limit * 2  # Biraz daha yüksek limit
-            last_valid_page = 1
-            
-            while low <= high:
-                mid = (low + high) // 2
-                # URL'i doğru formatta oluştur
-                if title_id:
-                    test_url = f"{self.BASE_URL}/{title}--{title_id}?p={mid}"
-                else:
-                    test_url = f"{self.BASE_URL}/{title}?p={mid}"
-                
-                response = self._make_request(test_url)
-                
-                if response:
-                    test_soup = BeautifulSoup(response.content, 'html.parser')
-                    test_entries = test_soup.find_all('li', {'data-id': True})
-                    
-                    if test_entries:
-                        last_valid_page = mid
-                        low = mid + 1
-                        time.sleep(0.2)  # Rate limiting
-                    else:
-                        high = mid - 1
-                else:
-                    high = mid - 1
-            
-            if last_valid_page > 1:
-                print(f"INFO: Binary search ile son sayfa bulundu: {last_valid_page}", file=sys.stderr)
-                return last_valid_page
+            # Eğer pagination linklerinden sayfa bulduysak, onu döndür
+            if max_page_from_links > 1:
+                return max_page_from_links
             
             return None
         except Exception as e:
@@ -354,6 +292,8 @@ class EksisozlukScraper:
         entries = []
         page = 1
         title_id = None  # Topic ID'yi saklamak için
+        title_slug = None  # Slug'ı saklamak için
+        pagination_format = None  # Pagination URL formatını sakla
         
         print(f"Başlık scrape ediliyor: {title}", file=sys.stderr)
         
@@ -366,8 +306,10 @@ class EksisozlukScraper:
             if page == 1:
                 url = f"{self.BASE_URL}/{title}"
             else:
-                # Topic ID'yi kullanarak pagination URL'i oluştur
-                if title_id:
+                # Doğru pagination formatını kullan
+                if pagination_format:
+                    url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                elif title_id:
                     url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
                 else:
                     url = f"{self.BASE_URL}/{title}?p={page}"
@@ -382,7 +324,9 @@ class EksisozlukScraper:
                     print(f"INFO: Sayfa {page} bulunamadı, scraping sonlandırılıyor", file=sys.stderr)
                 break
             
-            # İlk sayfada topic ID'yi response URL'den çıkar (redirect olabilir)
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # İlk sayfada topic ID ve pagination formatını çıkar
             if page == 1 and not title_id:
                 response_url = response.url
                 # URL formatı: https://eksisozluk.com/gauge--93891 veya https://eksisozluk.com/gauge--93891?p=1
@@ -398,23 +342,28 @@ class EksisozlukScraper:
                     if alt_match:
                         title_id = alt_match.group(1)
                         print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Pagination linklerinden formatı çıkar
+                # Öncelikle pagination linkini parse et
+                pagination_link = soup.find('a', href=re.compile(r'p=\d+'))
+                if pagination_link and pagination_link.get('href'):
+                    href = pagination_link['href']
+                    parsed_url = urlparse(href)
+                    params = parse_qs(parsed_url.query)
+                    
+                    if 'id' in params and 'slug' in params:
+                        title_id = params['id'][0]
+                        title_slug = params['slug'][0]
+                        pagination_format = f"{parsed_url.path}?p={{page}}&id={title_id}&slug={title_slug}"
+                        print(f"INFO: Pagination formatı bulundu: {pagination_format}", file=sys.stderr)
+                # Fallback: basit formatı kullan: /kopek--2167979?p=X
+                elif title_id:
+                    pagination_format = f"/{title}--{title_id}?p={{page}}"
+                    print(f"INFO: Pagination formatı bulundu (basit format): {pagination_format}", file=sys.stderr)
             
             # İlk sayfada pagination'dan son sayfa numarasını bul
             if page == 1 and time_filter and not last_page:
                 last_page = self._find_last_page_from_pagination(soup)
-                
-                # Eğer pagination'dan bulamazsak veya bulunan sayfa çok düşükse, binary search ile bulmaya çalış
-                # (Pagination genellikle sadece ilk birkaç sayfayı gösterir, gerçek son sayfa çok daha yüksek olabilir)
-                if not last_page or (last_page and last_page <= 10):
-                    if last_page and last_page <= 10:
-                        print(f"INFO: Pagination'dan bulunan sayfa ({last_page}) çok düşük, binary search ile gerçek son sayfa aranıyor...", file=sys.stderr)
-                    else:
-                        print(f"INFO: Pagination'dan son sayfa bulunamadı, binary search ile aranıyor...", file=sys.stderr)
-                    binary_search_result = self._find_last_page(soup, title, title_id, force_binary_search=True)
-                    if binary_search_result:
-                        last_page = binary_search_result
                 
                 if last_page:
                     print(f"INFO: Son sayfa bulundu: {last_page}", file=sys.stderr)
