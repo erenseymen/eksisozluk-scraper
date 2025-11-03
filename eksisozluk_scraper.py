@@ -22,18 +22,16 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, timeout: float = 60.0):
+    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
             max_retries: Maksimum tekrar deneme sayısı
             retry_delay: Hata aldığında tekrar denemeden önce bekleme süresi (saniye)
-            timeout: Toplam timeout süresi (saniye)
         """
         self.delay = delay
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.timeout = timeout
         # cloudscraper Cloudflare korumasını bypass eder
         self.session = cloudscraper.create_scraper(
             browser={
@@ -49,16 +47,10 @@ class EksisozlukScraper:
     
     def _make_request(self, url: str):
         """HTTP request yapar, retry mekanizması ile"""
-        start_time = time.time()
         attempt = 0
         
         while attempt < self.max_retries:
             try:
-                # Timeout kontrolü
-                if time.time() - start_time > self.timeout:
-                    print(f"ERROR: Timeout ({self.timeout}s) aşıldı", file=sys.stderr)
-                    return None
-                
                 response = self.session.get(url, timeout=10, allow_redirects=True)
                 
                 # 404 hatası sayfa yok demektir, retry yapma
@@ -962,7 +954,6 @@ def main():
     parser.add_argument('--delay', type=float, default=1.5, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 1.5)')
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
     parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
-    parser.add_argument('--timeout', type=float, default=60.0, help='Toplam timeout süresi (saniye, varsayılan: 60.0)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası (varsayılan: stdout)')
     
     args = parser.parse_args()
@@ -978,8 +969,7 @@ def main():
     scraper = EksisozlukScraper(
         delay=args.delay,
         max_retries=args.max_retries,
-        retry_delay=args.retry_delay,
-        timeout=args.timeout
+        retry_delay=args.retry_delay
     )
     
     # Input'un URL mi başlık mı olduğunu kontrol et

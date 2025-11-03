@@ -59,9 +59,6 @@ python eksisozluk_scraper.py "başlık-adı" --max-retries 5
 
 # Retry arası bekleme (varsayılan: 5.0 saniye)
 python eksisozluk_scraper.py "başlık-adı" --retry-delay 10.0
-
-# Toplam timeout (varsayılan: 60.0 saniye)
-python eksisozluk_scraper.py "başlık-adı" --timeout 120.0
 ```
 
 ## Çıktı Formatı
@@ -100,7 +97,6 @@ Scraper, AI tarafından kolayca işlenebilecek JSON formatında çıktı üretir
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting (sane pauses)
 - ✅ Hata durumunda otomatik retry mekanizması
-- ✅ Timeout koruması
 - ✅ Otomatik test suite
 
 ## Testler
@@ -128,5 +124,4 @@ Test suite aşağıdaki özellikleri doğrular:
 
 - Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
 - Hata durumlarında otomatik olarak belirli aralıklarla tekrar dener.
-- Toplam işlem süresi timeout ile sınırlandırılmıştır.
 

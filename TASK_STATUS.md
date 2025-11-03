@@ -115,26 +115,24 @@ python eksisozluk_scraper.py "kedi" --delay 2.0
 
 ---
 
-### ✅ 7. Retry Mekanizması ve Timeout
+### ✅ 7. Retry Mekanizması
 **Durum:** Tamamlandı  
-**Açıklama:** Hata durumunda otomatik retry ve timeout koruması var.  
+**Açıklama:** Hata durumunda otomatik retry mekanizması var.  
 **Detaylar:**
 - Varsayılan max retries: 3
 - Varsayılan retry delay: 5.0 saniye
-- Varsayılan timeout: 60.0 saniye (toplam işlem süresi)
 - Her request için ayrı timeout: 10 saniye
-- `--max-retries`, `--retry-delay`, `--timeout` parametreleri ile özelleştirilebilir
+- `--max-retries`, `--retry-delay` parametreleri ile özelleştirilebilir
 
 **Retry Mantığı:**
 1. Request başarısız olursa `retry_delay` kadar bekler
 2. Maksimum `max_retries` sayısı kadar tekrar dener
-3. Toplam işlem süresi `timeout`'u aşarsa durur
 
 **Test:** ✅ Çalışıyor
 
 **Örnek Kullanım:**
 ```bash
-python eksisozluk_scraper.py "kedi" --max-retries 5 --retry-delay 10.0 --timeout 120.0
+python eksisozluk_scraper.py "kedi" --max-retries 5 --retry-delay 10.0
 ```
 
 ---
