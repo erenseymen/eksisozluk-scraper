@@ -24,18 +24,20 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None):
+    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None, max_entries: Optional[int] = None):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
             max_retries: Maksimum tekrar deneme sayısı
             retry_delay: Hata aldığında tekrar denemeden önce bekleme süresi (saniye)
             output_file: Entry'lerin yazılacağı JSON dosyası yolu (opsiyonel)
+            max_entries: Maksimum entry sayısı (opsiyonel, None ise sınırsız)
         """
         self.delay = delay
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.output_file = output_file
+        self.max_entries = max_entries
         self.scrape_start_time = None
         self.scrape_input = None
         self.scrape_time_filter = None
@@ -482,6 +484,15 @@ class EksisozlukScraper:
             entries.extend(page_entries)
             print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
             
+            # Max entries kontrolü
+            if self.max_entries and len(entries) >= self.max_entries:
+                # Limit aşıldı, fazla entry'leri kaldır
+                entries = entries[:self.max_entries]
+                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                # Entry'leri dosyaya yaz (incremental update)
+                self._write_entries_to_file(entries)
+                break
+            
             # Entry'leri dosyaya yaz (incremental update)
             self._write_entries_to_file(entries)
             
@@ -779,9 +790,17 @@ class EksisozlukScraper:
                         if entry:
                             entry['title'] = title
                             entries.append(entry)
+                            # Max entries kontrolü
+                            if self.max_entries and len(entries) >= self.max_entries:
+                                entries = entries[:self.max_entries]
+                                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
                         self._write_entries_to_file(entries)
+                    # Max entries kontrolü - limit aşıldıysa dur
+                    if self.max_entries and len(entries) >= self.max_entries:
+                        found_start_entry = True  # Pagination loop'unu atlamak için
                 else:
                     # Entry bu sayfada bulunamadı, tüm sayfayı al (focusto sayfası olduğu için entry olmalı)
                     print(f"WARNING: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
@@ -790,9 +809,17 @@ class EksisozlukScraper:
                         if entry:
                             entry['title'] = title
                             entries.append(entry)
+                            # Max entries kontrolü
+                            if self.max_entries and len(entries) >= self.max_entries:
+                                entries = entries[:self.max_entries]
+                                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
                         self._write_entries_to_file(entries)
+                    # Max entries kontrolü - limit aşıldıysa dur
+                    if self.max_entries and len(entries) >= self.max_entries:
+                        found_start_entry = True  # Pagination loop'unu atlamak için
                     # Entry bulunamasa bile sayfa numarası var, devam edebiliriz
                     found_entry_on_page = True
             
@@ -907,9 +934,17 @@ class EksisozlukScraper:
                             if entry:
                                 entry['title'] = title
                                 entries.append(entry)
+                                # Max entries kontrolü
+                                if self.max_entries and len(entries) >= self.max_entries:
+                                    entries = entries[:self.max_entries]
+                                    print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                    break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
                         self._write_entries_to_file(entries)
+                    # Max entries kontrolü - limit aşıldıysa dur
+                    if self.max_entries and len(entries) >= self.max_entries:
+                        break
                     break
                 
                 page += 1
@@ -917,70 +952,83 @@ class EksisozlukScraper:
         
         # Entry bulundu veya sayfa numarası belirlendi, o sayfadan itibaren devam et
         if found_start_entry:
-            # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
-            # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
-            # Şimdi sonraki sayfalardan devam et
-            page += 1
-            print(f"INFO: Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
-            
-            while True:
-                if pagination_format:
-                    url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
-                elif title_id:
-                    url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
-                else:
-                    url = f"{self.BASE_URL}/{title}?p={page}"
-                
-                response = self._make_request(url)
-                if not response:
-                    break
-                
-                soup = BeautifulSoup(response.content, 'html.parser')
-                # Entry'leri bul - ul#entry-item-list öncelikli
-                entry_elements = soup.find_all('li', {'data-id': True})
-                
-                if not entry_elements:
-                    entry_elements = soup.select('ul#entry-item-list > li')
-                
-                if not entry_elements:
-                    entry_elements = soup.select('ul#entry-list > li')
-                
-                if not entry_elements:
-                    entry_list = (soup.find('ul', id='entry-item-list') or 
-                                soup.find('ul', id='entry-list'))
-                    if entry_list:
-                        entry_elements = entry_list.find_all('li', {'data-id': True})
-                
-                if not entry_elements:
-                    entry_elements = soup.find_all('div', {'class': 'content-item'})
-                
-                if not entry_elements:
-                    break
-                
-                page_entries = []
-                for elem in entry_elements:
-                    entry = self._parse_entry(elem)
-                    if entry:
-                        entry['title'] = title
-                        page_entries.append(entry)
-                
-                if not page_entries:
-                    break
-                
-                entries.extend(page_entries)
-                print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
-                
-                # Entry'leri dosyaya yaz (incremental update)
-                self._write_entries_to_file(entries)
-                
-                # Son sayfa kontrolü
-                last_page = self._find_last_page_from_pagination(soup)
-                if last_page and page >= last_page:
-                    print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
-                    break
-                
+            # Max entries kontrolü - limit zaten aşıldıysa pagination'a girme
+            if self.max_entries and len(entries) >= self.max_entries:
+                print(f"INFO: Maksimum entry sayısına zaten ulaşıldı ({self.max_entries}), pagination atlanıyor", file=sys.stderr)
+            else:
+                # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
+                # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
+                # Şimdi sonraki sayfalardan devam et
                 page += 1
-                time.sleep(self.delay)
+                print(f"INFO: Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
+                
+                while True:
+                    if pagination_format:
+                        url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                    elif title_id:
+                        url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
+                    else:
+                        url = f"{self.BASE_URL}/{title}?p={page}"
+                    
+                    response = self._make_request(url)
+                    if not response:
+                        break
+                    
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    # Entry'leri bul - ul#entry-item-list öncelikli
+                    entry_elements = soup.find_all('li', {'data-id': True})
+                    
+                    if not entry_elements:
+                        entry_elements = soup.select('ul#entry-item-list > li')
+                    
+                    if not entry_elements:
+                        entry_elements = soup.select('ul#entry-list > li')
+                    
+                    if not entry_elements:
+                        entry_list = (soup.find('ul', id='entry-item-list') or 
+                                    soup.find('ul', id='entry-list'))
+                        if entry_list:
+                            entry_elements = entry_list.find_all('li', {'data-id': True})
+                    
+                    if not entry_elements:
+                        entry_elements = soup.find_all('div', {'class': 'content-item'})
+                    
+                    if not entry_elements:
+                        break
+                    
+                    page_entries = []
+                    for elem in entry_elements:
+                        entry = self._parse_entry(elem)
+                        if entry:
+                            entry['title'] = title
+                            page_entries.append(entry)
+                    
+                    if not page_entries:
+                        break
+                    
+                    entries.extend(page_entries)
+                    print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
+                    
+                    # Max entries kontrolü
+                    if self.max_entries and len(entries) >= self.max_entries:
+                        # Limit aşıldı, fazla entry'leri kaldır
+                        entries = entries[:self.max_entries]
+                        print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                        # Entry'leri dosyaya yaz (incremental update)
+                        self._write_entries_to_file(entries)
+                        break
+                    
+                    # Entry'leri dosyaya yaz (incremental update)
+                    self._write_entries_to_file(entries)
+                    
+                    # Son sayfa kontrolü
+                    last_page = self._find_last_page_from_pagination(soup)
+                    if last_page and page >= last_page:
+                        print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
+                        break
+                    
+                    page += 1
+                    time.sleep(self.delay)
         
         return entries
 
@@ -1000,6 +1048,12 @@ def main():
   # Son 1 haftalık entry'leri scrape et:
   python eksisozluk_scraper.py "python" --days 7
 
+  # Maksimum 100 entry scrape et:
+  python eksisozluk_scraper.py "python" --max-entries 100
+
+  # Son 7 günlük, maksimum 50 entry scrape et:
+  python eksisozluk_scraper.py "python" --days 7 --max-entries 50
+
   # Belirli bir entry'den itibaren scrape et:
   python eksisozluk_scraper.py "https://eksisozluk.com/python--123456"
 
@@ -1014,6 +1068,7 @@ def main():
     parser.add_argument('--delay', type=float, default=1.5, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 1.5)')
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
     parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
+    parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası (varsayılan: stdout)')
     
     args = parser.parse_args()
@@ -1030,7 +1085,8 @@ def main():
         delay=args.delay,
         max_retries=args.max_retries,
         retry_delay=args.retry_delay,
-        output_file=args.output
+        output_file=args.output,
+        max_entries=args.max_entries
     )
     
     # Ctrl+C durumunda dosyayı kaydetmek için signal handler
