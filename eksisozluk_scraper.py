@@ -9,6 +9,8 @@ import json
 import re
 import time
 import sys
+import signal
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from urllib.parse import urlparse, parse_qs
@@ -22,16 +24,22 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0):
+    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
             max_retries: Maksimum tekrar deneme sayısı
             retry_delay: Hata aldığında tekrar denemeden önce bekleme süresi (saniye)
+            output_file: Entry'lerin yazılacağı JSON dosyası yolu (opsiyonel)
         """
         self.delay = delay
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.output_file = output_file
+        self.scrape_start_time = None
+        self.scrape_input = None
+        self.scrape_time_filter = None
+        self.current_entries = []  # Mevcut entry'leri tutmak için
         # cloudscraper Cloudflare korumasını bypass eder
         self.session = cloudscraper.create_scraper(
             browser={
@@ -290,8 +298,40 @@ class EksisozlukScraper:
             print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
     
+    def _write_entries_to_file(self, entries: List[Dict]):
+        """Entry'leri JSON dosyasına yazar (incremental update)"""
+        if not self.output_file:
+            return
+        
+        # Mevcut entry'leri güncelle
+        self.current_entries = entries
+        
+        try:
+            # Output dosyası yapısını oluştur
+            output_data = {
+                'scrape_info': {
+                    'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
+                    'total_entries': len(entries),
+                    'input': self.scrape_input or '',
+                    'time_filter': self.scrape_time_filter
+                },
+                'entries': entries
+            }
+            
+            # JSON'u dosyaya yaz
+            with open(self.output_file, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, ensure_ascii=False, indent=2)
+        
+        except Exception as e:
+            print(f"WARNING: Entry'ler dosyaya yazılamadı: {e}", file=sys.stderr)
+    
     def scrape_title(self, title: str, time_filter: Optional[timedelta] = None) -> List[Dict]:
         """Bir başlıktaki tüm entry'leri scrape eder"""
+        # Scrape bilgilerini kaydet
+        self.scrape_start_time = datetime.now()
+        self.scrape_input = title
+        self.scrape_time_filter = f"{time_filter.days} days" if time_filter else None
+        
         entries = []
         page = 1
         title_id = None  # Topic ID'yi saklamak için
@@ -442,6 +482,9 @@ class EksisozlukScraper:
             entries.extend(page_entries)
             print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
             
+            # Entry'leri dosyaya yaz (incremental update)
+            self._write_entries_to_file(entries)
+            
             # Eğer zaman filtresi varsa ve bu sayfadaki TÜM entry'ler belirtilen süreyi aşmışsa dur
             if time_filter and all_entries_too_old:
                 if entry_elements:
@@ -478,6 +521,11 @@ class EksisozlukScraper:
     
     def scrape_entry_and_following(self, entry_url: str) -> List[Dict]:
         """Belirli bir entry'den başlayarak sonraki entry'leri scrape eder"""
+        # Scrape bilgilerini kaydet
+        self.scrape_start_time = datetime.now()
+        self.scrape_input = entry_url
+        self.scrape_time_filter = None
+        
         entries = []
         
         # Entry URL'inden entry ID'yi çıkar
@@ -731,6 +779,9 @@ class EksisozlukScraper:
                         if entry:
                             entry['title'] = title
                             entries.append(entry)
+                    # Entry'leri dosyaya yaz (incremental update)
+                    if entries:
+                        self._write_entries_to_file(entries)
                 else:
                     # Entry bu sayfada bulunamadı, tüm sayfayı al (focusto sayfası olduğu için entry olmalı)
                     print(f"WARNING: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
@@ -739,6 +790,9 @@ class EksisozlukScraper:
                         if entry:
                             entry['title'] = title
                             entries.append(entry)
+                    # Entry'leri dosyaya yaz (incremental update)
+                    if entries:
+                        self._write_entries_to_file(entries)
                     # Entry bulunamasa bile sayfa numarası var, devam edebiliriz
                     found_entry_on_page = True
             
@@ -853,6 +907,9 @@ class EksisozlukScraper:
                             if entry:
                                 entry['title'] = title
                                 entries.append(entry)
+                    # Entry'leri dosyaya yaz (incremental update)
+                    if entries:
+                        self._write_entries_to_file(entries)
                     break
                 
                 page += 1
@@ -913,6 +970,9 @@ class EksisozlukScraper:
                 entries.extend(page_entries)
                 print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
                 
+                # Entry'leri dosyaya yaz (incremental update)
+                self._write_entries_to_file(entries)
+                
                 # Son sayfa kontrolü
                 last_page = self._find_last_page_from_pagination(soup)
                 if last_page and page >= last_page:
@@ -969,35 +1029,54 @@ def main():
     scraper = EksisozlukScraper(
         delay=args.delay,
         max_retries=args.max_retries,
-        retry_delay=args.retry_delay
+        retry_delay=args.retry_delay,
+        output_file=args.output
     )
     
-    # Input'un URL mi başlık mı olduğunu kontrol et
-    if args.input.startswith('http://') or args.input.startswith('https://'):
-        entries = scraper.scrape_entry_and_following(args.input)
-    else:
-        entries = scraper.scrape_title(args.input, time_filter)
+    # Ctrl+C durumunda dosyayı kaydetmek için signal handler
+    def signal_handler(sig, frame):
+        print("\nINFO: Scraping durduruldu (Ctrl+C), o ana kadar toplanan entry'ler kaydediliyor...", file=sys.stderr)
+        # Scraper'ın mevcut entry'lerini dosyaya yaz
+        if scraper.current_entries:
+            scraper._write_entries_to_file(scraper.current_entries)
+        sys.exit(0)
     
-    # Çıktıyı hazırla
-    output_data = {
-        'scrape_info': {
-            'timestamp': datetime.now().isoformat(),
-            'total_entries': len(entries),
-            'input': args.input,
-            'time_filter': f"{args.days} days" if args.days else (f"{args.weeks} weeks" if args.weeks else None)
-        },
-        'entries': entries
-    }
-    
-    # JSON olarak çıktı ver
-    output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
-    
+    # Signal handler'ı kaydet (sadece output dosyası belirtilmişse)
     if args.output:
-        with open(args.output, 'w', encoding='utf-8') as f:
-            f.write(output_json)
-        print(f"INFO: Çıktı {args.output} dosyasına kaydedildi", file=sys.stderr)
-    else:
+        signal.signal(signal.SIGINT, signal_handler)
+    
+    # Entry'leri toplamak için list
+    entries = []
+    
+    try:
+        # Input'un URL mi başlık mı olduğunu kontrol et
+        if args.input.startswith('http://') or args.input.startswith('https://'):
+            entries = scraper.scrape_entry_and_following(args.input)
+        else:
+            entries = scraper.scrape_title(args.input, time_filter)
+    except KeyboardInterrupt:
+        # Ctrl+C yakalandı, zaten incremental yazma yapıldığı için dosyada entry'ler var
+        print("\nINFO: Scraping durduruldu (Ctrl+C), o ana kadar toplanan entry'ler kaydedildi", file=sys.stderr)
+        sys.exit(0)
+    
+    # Çıktıyı hazırla (output dosyası belirtilmemişse stdout'a yaz)
+    if not args.output:
+        output_data = {
+            'scrape_info': {
+                'timestamp': datetime.now().isoformat(),
+                'total_entries': len(entries),
+                'input': args.input,
+                'time_filter': f"{args.days} days" if args.days else (f"{args.weeks} weeks" if args.weeks else None)
+            },
+            'entries': entries
+        }
+        
+        # JSON olarak çıktı ver
+        output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
         print(output_json)
+    else:
+        # Output dosyası zaten incremental olarak yazıldı, sadece bilgi ver
+        print(f"INFO: Toplam {len(entries)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
 
 
 if __name__ == '__main__':
