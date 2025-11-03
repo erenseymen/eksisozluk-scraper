@@ -574,9 +574,9 @@ class EksisozlukScraper:
             time.sleep(self.delay)
             
             # Sayfa limiti (sonsuz döngüyü önlemek için)
-            if page > 100:
-                print(f"WARNING: Başlangıç entry bulunamadı (100 sayfa limit)", file=sys.stderr)
-                break
+            # if page > 100:
+            #     print(f"WARNING: Başlangıç entry bulunamadı (100 sayfa limit)", file=sys.stderr)
+            #     break
         
         # Sonraki sayfalardaki entry'leri de scrape et
         if found_start_entry:
