@@ -101,6 +101,28 @@ Scraper, AI tarafından kolayca işlenebilecek JSON formatında çıktı üretir
 - ✅ Rate limiting (sane pauses)
 - ✅ Hata durumunda otomatik retry mekanizması
 - ✅ Timeout koruması
+- ✅ Otomatik test suite
+
+## Testler
+
+Proje, otomatik test suite'i içerir. Testleri çalıştırmak için:
+
+```bash
+# Tüm testleri çalıştır
+python test_scraper.py
+
+# veya
+./test_scraper.py
+```
+
+Test suite aşağıdaki özellikleri doğrular:
+- ✅ Temel scraping işlevselliği
+- ✅ Pagination'ın doğru sayfada durması
+- ✅ Zaman filtresi kullanırken ters sıralama
+- ✅ Doğru pagination URL formatı (`/slug--id?p=X`)
+- ✅ Son sayfa numarasının doğru tespit edilmesi (`data-pagecount`)
+- ✅ Entry yapı doğrulaması
+- ✅ Rate limiting
 
 ## Notlar
 
