@@ -488,36 +488,221 @@ class EksisozlukScraper:
         """Belirli bir entry'den başlayarak sonraki entry'leri scrape eder"""
         entries = []
         
-        # Entry URL'inden başlık ve entry ID'yi çıkar
+        # Entry URL'inden entry ID'yi çıkar
         parsed_url = urlparse(entry_url)
-        path_parts = parsed_url.path.strip('/').split('--')
+        path = parsed_url.path.strip('/')
         
-        if len(path_parts) < 2:
-            print(f"ERROR: Geçersiz entry URL formatı: {entry_url}", file=sys.stderr)
-            return entries
+        # İki format destekleniyor:
+        # 1. /entry/{id} formatı (yeni format)
+        # 2. /{title}--{id} formatı (eski format)
+        entry_id = None
+        title = None
+        title_id = None
         
-        title = path_parts[0]
-        entry_id = path_parts[1]
-        
-        print(f"Entry scrape ediliyor: {title} (entry #{entry_id})", file=sys.stderr)
-        
-        # Önce belirtilen entry'yi bul
-        found_start_entry = False
-        page = 1
-        
-        while not found_start_entry:
-            if page == 1:
-                url = f"{self.BASE_URL}/{title}"
-            else:
-                url = f"{self.BASE_URL}/{title}?p={page}"
+        # /entry/{id} formatını kontrol et
+        entry_match = re.match(r'entry/(\d+)', path)
+        if entry_match:
+            entry_id = entry_match.group(1)
+            print(f"Entry URL formatı tespit edildi: /entry/{entry_id}", file=sys.stderr)
             
-            response = self._make_request(url)
+            # Entry sayfasını fetch et
+            response = self._make_request(entry_url)
             if not response:
-                break
+                print(f"ERROR: Entry sayfası yüklenemedi: {entry_url}", file=sys.stderr)
+                return entries
             
             soup = BeautifulSoup(response.content, 'html.parser')
-            # Entry'leri bul - çoklu selector stratejisi
-            # ÖNEMLİ: Ekşi Sözlük'te entry'ler ul#entry-item-list içinde
+            
+            # Topic bilgisini entry sayfasından çıkar
+            # Öncelikle h1 içindeki başlık linkine bak
+            h1_title = soup.find('h1')
+            if h1_title:
+                title_link = h1_title.find('a', href=True)
+                if title_link and title_link.get('href'):
+                    topic_href = title_link['href']
+                    # Topic URL formatı: /title--id veya /title--id?p=X
+                    topic_match = re.search(r'/([^/]+)--(\d+)', topic_href)
+                    if topic_match:
+                        title = topic_match.group(1)
+                        title_id = topic_match.group(2)
+                        print(f"INFO: Topic bulundu (h1 link): {title} (ID: {title_id})", file=sys.stderr)
+            
+            # Eğer bulunamadıysa, sayfa title'ından çıkar
+            if not title:
+                page_title = soup.find('title')
+                if page_title:
+                    title_text = page_title.get_text()
+                    # Format: "galatasaray - #179413362 - ekşi sözlük"
+                    title_match = re.match(r'([^-\#]+)', title_text.strip())
+                    if title_match:
+                        potential_title = title_match.group(1).strip()
+                        # Topic sayfasına gidip title ID'yi al
+                        test_url = f"{self.BASE_URL}/{potential_title}"
+                        test_response = self._make_request(test_url)
+                        if test_response:
+                            test_url_parsed = urlparse(test_response.url)
+                            test_path = test_url_parsed.path
+                            test_match = re.search(r'/([^/]+)--(\d+)', test_path)
+                            if test_match:
+                                title = test_match.group(1)
+                                title_id = test_match.group(2)
+                                print(f"INFO: Topic bulundu (sayfa title): {title} (ID: {title_id})", file=sys.stderr)
+            
+            # Hala bulunamadıysa, genel link arama
+            if not title:
+                topic_link = soup.find('a', href=re.compile(r'/[^/]+--\d+')) or \
+                            soup.find('a', href=re.compile(r'/[^/]+--\d+\?p=\d+'))
+                
+                if topic_link and topic_link.get('href'):
+                    topic_href = topic_link['href']
+                    # Topic URL formatı: /title--id veya /title--id?p=X
+                    topic_match = re.search(r'/([^/]+)--(\d+)', topic_href)
+                    if topic_match:
+                        title = topic_match.group(1)
+                        title_id = topic_match.group(2)
+                        print(f"INFO: Topic bulundu: {title} (ID: {title_id})", file=sys.stderr)
+            
+            # Eğer topic linkinden bulunamazsa, meta tag veya diğer elementlerden dene
+            if not title:
+                # Meta tag'lerden dene
+                meta_title = soup.find('meta', property='og:title')
+                if meta_title and meta_title.get('content'):
+                    # Meta title'dan topic çıkarılabilir
+                    pass
+                
+                # Alternatif: Sayfa başlığından veya breadcrumb'dan
+                breadcrumb = soup.find('nav', class_=re.compile('breadcrumb')) or \
+                           soup.find('div', class_=re.compile('breadcrumb'))
+                if breadcrumb:
+                    breadcrumb_links = breadcrumb.find_all('a')
+                    for link in breadcrumb_links:
+                        href = link.get('href', '')
+                        topic_match = re.search(r'/([^/]+)--(\d+)', href)
+                        if topic_match:
+                            title = topic_match.group(1)
+                            title_id = topic_match.group(2)
+                            print(f"INFO: Topic bulundu (breadcrumb): {title} (ID: {title_id})", file=sys.stderr)
+                            break
+            
+            # Hala bulunamazsa, topic sayfasına focusto ile yönlendir
+            if not title:
+                # Entry sayfasında "X entry daha" butonunu bul ve tıkla
+                # Veya direkt topic sayfasına focusto parametresi ile git
+                # Önce entry ID'den topic bilgisini çıkarmayı dene
+                # Alternatif: Entry sayfasından topic slug'ını çıkar
+                entry_content = soup.find('div', class_=re.compile('content')) or \
+                              soup.find('article') or \
+                              soup.find('div', id='entry-item-list')
+                
+                # Entry sayfasında genellikle topic linki var
+                all_links = soup.find_all('a', href=True)
+                for link in all_links:
+                    href = link.get('href', '')
+                    # Topic URL formatını kontrol et
+                    if '--' in href and re.match(r'/[^/]+--\d+', href):
+                        topic_match = re.search(r'/([^/]+)--(\d+)', href)
+                        if topic_match:
+                            title = topic_match.group(1)
+                            title_id = topic_match.group(2)
+                            print(f"INFO: Topic bulundu (sayfa linklerinden): {title} (ID: {title_id})", file=sys.stderr)
+                            break
+            
+            if not title or not title_id:
+                print(f"ERROR: Entry sayfasından topic bilgisi çıkarılamadı: {entry_url}", file=sys.stderr)
+                return entries
+            
+            # Topic sayfasına focusto parametresi ile git
+            topic_url = f"{self.BASE_URL}/{title}--{title_id}?focusto={entry_id}"
+            print(f"INFO: Topic sayfasına yönlendiriliyor: {topic_url}", file=sys.stderr)
+            
+            response = self._make_request(topic_url)
+            if not response:
+                print(f"ERROR: Topic sayfası yüklenemedi: {topic_url}", file=sys.stderr)
+                return entries
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Mevcut sayfa numarasını pagination'dan çıkar
+            current_page = 1
+            response_url = response.url
+            
+            # Öncelikle URL'den sayfa numarasını çıkar (redirect sonrası URL'de p= olabilir)
+            url_page_match = re.search(r'[?&]p=(\d+)', response_url)
+            if url_page_match:
+                current_page = int(url_page_match.group(1))
+                print(f"INFO: Entry'nin bulunduğu sayfa (URL'den): {current_page}", file=sys.stderr)
+            else:
+                # URL'de yoksa, pagination div'inden bul
+                pagination_div = soup.find('div', class_='pager')
+                if pagination_div:
+                    # data-currentpage attribute'u varsa onu kullan
+                    if pagination_div.get('data-currentpage'):
+                        try:
+                            current_page = int(pagination_div.get('data-currentpage'))
+                            print(f"INFO: Entry'nin bulunduğu sayfa (data-currentpage): {current_page}", file=sys.stderr)
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Eğer hala bulunamadıysa, sayfa numarası text'inden bul
+                    if current_page == 1:
+                        # Sayfa numarası genellikle pager içinde gösterilir
+                        # Format: "6804 / 6824" veya sadece "6804"
+                        page_text = pagination_div.get_text()
+                        # Sayfa numarasını bul - "6804 / 6824" formatı (en yaygın format)
+                        # Önce "X / Y" formatını ara, X mevcut sayfa, Y toplam sayfa
+                        page_match = re.search(r'(\d+)\s*/\s*(\d+)', page_text)
+                        if page_match:
+                            current_page = int(page_match.group(1))
+                            print(f"INFO: Entry'nin bulunduğu sayfa (pager text): {current_page}", file=sys.stderr)
+                        else:
+                            # Alternatif: Pagination butonlarını kontrol et
+                            page_buttons = pagination_div.find_all(['button', 'a', 'span', 'div'])
+                            for button in page_buttons:
+                                button_text = button.get_text(strip=True)
+                                # "6804 / 6824" formatını kontrol et
+                                btn_match = re.search(r'(\d+)\s*/\s*(\d+)', button_text)
+                                if btn_match:
+                                    current_page = int(btn_match.group(1))
+                                    print(f"INFO: Entry'nin bulunduğu sayfa (button text): {current_page}", file=sys.stderr)
+                                    break
+                                
+                                # Sadece sayı varsa ve aktif sınıfı varsa bu sayfa numarası
+                                button_classes = button.get('class', [])
+                                is_active = any(cls in ['active', 'current', 'selected'] for cls in button_classes) if button_classes else False
+                                if button_text.isdigit() and is_active:
+                                    # Ancak küçük sayılar (1-10) genellikle sayfa numarası değil, sayfa butonu
+                                    # Sadece büyük sayılar (> 100) sayfa numarası olabilir
+                                    page_num = int(button_text)
+                                    if page_num > 100:  # Büyük sayılar sayfa numarası olabilir
+                                        current_page = page_num
+                                        print(f"INFO: Entry'nin bulunduğu sayfa (active button, büyük sayı): {current_page}", file=sys.stderr)
+                                        break
+                            
+                            # Hala bulunamadıysa, aktif sayfa linkini bul
+                            if current_page == 1:
+                                active_page = pagination_div.find('a', class_=re.compile('active|current|selected'))
+                                if active_page:
+                                    href = active_page.get('href', '')
+                                    page_match = re.search(r'p=(\d+)', href)
+                                    if page_match:
+                                        current_page = int(page_match.group(1))
+                                        print(f"INFO: Entry'nin bulunduğu sayfa (active link): {current_page}", file=sys.stderr)
+                            
+                            # Son çare: Pagination div'inde tüm sayıları bul ve "X / Y" formatını ara
+                            # Tüm pagination içeriğini tekrar kontrol et
+                            if current_page == 1:
+                                # Pagination div'inin tüm HTML'ini kontrol et
+                                pagination_html = str(pagination_div)
+                                # "X / Y" formatını HTML içinde ara
+                                html_page_match = re.search(r'(\d+)\s*/\s*(\d+)', pagination_html)
+                                if html_page_match:
+                                    current_page = int(html_page_match.group(1))
+                                    print(f"INFO: Entry'nin bulunduğu sayfa (pagination HTML): {current_page}", file=sys.stderr)
+                else:
+                    # Pagination div bulunamadı
+                    print(f"WARNING: Pagination div bulunamadı, sayfa numarası varsayılan olarak 1 kullanılıyor", file=sys.stderr)
+            
+            # Bu sayfadaki entry'leri bul ve entry'den itibaren al
             entry_elements = soup.find_all('li', {'data-id': True})
             
             if not entry_elements:
@@ -528,61 +713,175 @@ class EksisozlukScraper:
             
             if not entry_elements:
                 entry_list = (soup.find('ul', id='entry-item-list') or 
-                            soup.find('ul', id='entry-list') or 
-                            soup.find('ul', class_=re.compile('entry.*list')))
+                            soup.find('ul', id='entry-list'))
                 if entry_list:
                     entry_elements = entry_list.find_all('li', {'data-id': True})
             
             if not entry_elements:
-                entry_elements = soup.find_all('li', class_=re.compile('entry'))
-            
-            if not entry_elements:
                 entry_elements = soup.find_all('div', {'class': 'content-item'})
             
-            if not entry_elements:
-                break
-            
-            for elem in entry_elements:
-                entry = self._parse_entry(elem)
-                if entry and entry.get('entry_id') == entry_id:
-                    found_start_entry = True
-                    entry['title'] = title
-                    entries.append(entry)
-                    print(f"INFO: Başlangıç entry bulundu", file=sys.stderr)
-                    break
-            
-            if found_start_entry:
-                # Bu sayfadaki kalan entry'leri de ekle
-                start_index = None
+            # Entry'yi bul ve o entry'den itibaren al
+            start_index = None
+            found_entry_on_page = False
+            if entry_elements:
                 for i, elem in enumerate(entry_elements):
-                    parsed = self._parse_entry(elem)
-                    if parsed and parsed.get('entry_id') == entry_id:
+                    parsed_entry = self._parse_entry(elem)
+                    if parsed_entry and parsed_entry.get('entry_id') == entry_id:
                         start_index = i
+                        found_entry_on_page = True
+                        print(f"INFO: Entry bulundu, bu sayfadan itibaren alınıyor", file=sys.stderr)
                         break
                 
+                # Entry'den itibaren bu sayfadaki entry'leri ekle
                 if start_index is not None:
-                    for elem in entry_elements[start_index + 1:]:
+                    for elem in entry_elements[start_index:]:
                         entry = self._parse_entry(elem)
                         if entry:
                             entry['title'] = title
                             entries.append(entry)
+                else:
+                    # Entry bu sayfada bulunamadı, tüm sayfayı al (focusto sayfası olduğu için entry olmalı)
+                    print(f"WARNING: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
+                    for elem in entry_elements:
+                        entry = self._parse_entry(elem)
+                        if entry:
+                            entry['title'] = title
+                            entries.append(entry)
+                    # Entry bulunamasa bile sayfa numarası var, devam edebiliriz
+                    found_entry_on_page = True
             
-            if found_start_entry:
-                break
+            page = current_page
+            pagination_format = f"/{title}--{title_id}?p={{page}}"
+            # Entry bulundu, entry'ler toplandı veya sayfa numarası bulundu (devam edebiliriz)
+            found_start_entry = found_entry_on_page or len(entries) > 0 or current_page > 0
+            if not found_entry_on_page and len(entries) == 0:
+                print(f"WARNING: Entry sayfasında entry bulunamadı, ancak sayfa {current_page}'den devam edilecek", file=sys.stderr)
             
-            page += 1
-            time.sleep(self.delay)
+        else:
+            # Eski format: /{title}--{id}
+            path_parts = path.split('--')
+            if len(path_parts) < 2:
+                print(f"ERROR: Geçersiz entry URL formatı: {entry_url}", file=sys.stderr)
+                return entries
             
-            # Sayfa limiti (sonsuz döngüyü önlemek için)
-            # if page > 100:
-            #     print(f"WARNING: Başlangıç entry bulunamadı (100 sayfa limit)", file=sys.stderr)
-            #     break
+            title = path_parts[0]
+            entry_id = path_parts[1]
+            
+            print(f"Entry scrape ediliyor: {title} (entry #{entry_id})", file=sys.stderr)
+            
+            # Önce belirtilen entry'yi bul
+            page = 1
+            found_start_entry = False
+            pagination_format = None
+            title_id = None
+            
+            # Topic ID'yi URL'den çıkarmayı dene
+            if '?' in entry_url:
+                query_params = parse_qs(parsed_url.query)
+                if 'id' in query_params:
+                    title_id = query_params['id'][0]
+            
+            # İlk sayfadan topic ID'yi al
+            first_url = f"{self.BASE_URL}/{title}"
+            first_response = self._make_request(first_url)
+            if first_response:
+                first_soup = BeautifulSoup(first_response.content, 'html.parser')
+                response_url = first_response.url
+                title_id_match = re.search(rf'/{re.escape(title)}--(\d+)', response_url)
+                if title_id_match:
+                    title_id = title_id_match.group(1)
+                    pagination_format = f"/{title}--{title_id}?p={{page}}"
+            
+            # Entry'yi bulmak için sayfaları tara
+            while not found_start_entry:
+                if page == 1:
+                    url = f"{self.BASE_URL}/{title}"
+                else:
+                    if pagination_format:
+                        url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                    else:
+                        url = f"{self.BASE_URL}/{title}?p={page}"
+                
+                response = self._make_request(url)
+                if not response:
+                    break
+                
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # İlk sayfada topic ID ve pagination formatını çıkar
+                if page == 1 and not title_id:
+                    response_url = response.url
+                    title_id_match = re.search(rf'/{re.escape(title)}--(\d+)', response_url)
+                    if title_id_match:
+                        title_id = title_id_match.group(1)
+                        pagination_format = f"/{title}--{title_id}?p={{page}}"
+                
+                # Entry'leri bul - çoklu selector stratejisi
+                entry_elements = soup.find_all('li', {'data-id': True})
+                
+                if not entry_elements:
+                    entry_elements = soup.select('ul#entry-item-list > li')
+                
+                if not entry_elements:
+                    entry_elements = soup.select('ul#entry-list > li')
+                
+                if not entry_elements:
+                    entry_list = (soup.find('ul', id='entry-item-list') or 
+                                soup.find('ul', id='entry-list') or 
+                                soup.find('ul', class_=re.compile('entry.*list')))
+                    if entry_list:
+                        entry_elements = entry_list.find_all('li', {'data-id': True})
+                
+                if not entry_elements:
+                    entry_elements = soup.find_all('li', class_=re.compile('entry'))
+                
+                if not entry_elements:
+                    entry_elements = soup.find_all('div', {'class': 'content-item'})
+                
+                if not entry_elements:
+                    break
+                
+                # Entry'yi bul
+                start_index = None
+                for i, elem in enumerate(entry_elements):
+                    entry = self._parse_entry(elem)
+                    if entry and entry.get('entry_id') == entry_id:
+                        found_start_entry = True
+                        entry['title'] = title
+                        entries.append(entry)
+                        start_index = i
+                        print(f"INFO: Başlangıç entry bulundu (sayfa {page})", file=sys.stderr)
+                        break
+                
+                if found_start_entry:
+                    # Bu sayfadaki kalan entry'leri de ekle
+                    if start_index is not None:
+                        for elem in entry_elements[start_index + 1:]:
+                            entry = self._parse_entry(elem)
+                            if entry:
+                                entry['title'] = title
+                                entries.append(entry)
+                    break
+                
+                page += 1
+                time.sleep(self.delay)
         
-        # Sonraki sayfalardaki entry'leri de scrape et
+        # Entry bulundu veya sayfa numarası belirlendi, o sayfadan itibaren devam et
         if found_start_entry:
+            # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
+            # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
+            # Şimdi sonraki sayfalardan devam et
             page += 1
+            print(f"INFO: Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
+            
             while True:
-                url = f"{self.BASE_URL}/{title}?p={page}"
+                if pagination_format:
+                    url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                elif title_id:
+                    url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
+                else:
+                    url = f"{self.BASE_URL}/{title}?p={page}"
+                
                 response = self._make_request(url)
                 if not response:
                     break
@@ -622,8 +921,10 @@ class EksisozlukScraper:
                 entries.extend(page_entries)
                 print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
                 
-                next_link = soup.find('a', {'rel': 'next'}) or soup.find('a', string=re.compile(r'→|sonraki', re.I))
-                if not next_link:
+                # Son sayfa kontrolü
+                last_page = self._find_last_page_from_pagination(soup)
+                if last_page and page >= last_page:
+                    print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
                     break
                 
                 page += 1

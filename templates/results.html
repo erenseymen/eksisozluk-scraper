@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duplicate Finder Results</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { padding-top: 50px; }
+        .container { max-width: 90%; }
+        .table-container { max-height: 400px; overflow-y: auto; margin-bottom: 20px; border: 1px solid #dee2e6; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4 text-center">CSV Processing Results</h1>
+
+        <h2 class="mt-5">Original Data</h2>
+        <div class="table-container">
+            {{ original_data | safe }}
+        </div>
+
+        {% if has_duplicates %}
+            <h2 class="mt-5">Duplicate Rows Found</h2>
+            <div class="table-container">
+                {{ duplicate_data | safe }}
+            </div>
+            <a href="/download_duplicates" class="btn btn-success mt-3">Download Duplicates CSV</a>
+        {% else %}
+            <div class="alert alert-info mt-5" role="alert">
+                No duplicate rows found.
+            </div>
+        {% endif %}
+
+        <a href="/" class="btn btn-secondary mt-5">Upload Another CSV</a>
+    </div>
+</body>
+</html>
+
