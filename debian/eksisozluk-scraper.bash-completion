@@ -1,0 +1,49 @@
+# bash completion for eksisozluk-scraper
+# This file is part of eksisozluk-scraper package
+
+_eksisozluk_scraper() {
+    local cur prev words cword
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    words=("${COMP_WORDS[@]}")
+
+    # Options
+    local opts="--days --weeks --months --years --delay --max-retries --retry-delay --max-entries --output -o --no-bkz --help -h"
+    
+    # File completion for --output
+    if [[ "$prev" == "--output" ]] || [[ "$prev" == "-o" ]]; then
+        COMPREPLY=( $(compgen -f -X "!*.{json,csv,md,markdown}" -- "$cur") )
+        return 0
+    fi
+    
+    # Number completion for numeric options
+    if [[ "$prev" == "--days" ]] || [[ "$prev" == "--weeks" ]] || \
+       [[ "$prev" == "--months" ]] || [[ "$prev" == "--years" ]] || \
+       [[ "$prev" == "--max-entries" ]] || [[ "$prev" == "--max-retries" ]]; then
+        return 0
+    fi
+    
+    # Float completion for delay options
+    if [[ "$prev" == "--delay" ]] || [[ "$prev" == "--retry-delay" ]]; then
+        return 0
+    fi
+    
+    # If current word starts with --, complete with options
+    if [[ "$cur" == --* ]]; then
+        COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
+        return 0
+    fi
+    
+    # If we're at the first argument (input), don't complete anything
+    if [[ ${#COMP_WORDS[@]} -eq 2 ]]; then
+        return 0
+    fi
+    
+    # Default: complete with options
+    COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
+    return 0
+}
+
+complete -F _eksisozluk_scraper eksisozluk-scraper
+

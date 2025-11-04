@@ -16,78 +16,34 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
-.venv
 
-# IDE / Editors
+# Debian build
+debian/eksisozluk-scraper/
+debian/files
+debian/.debhelper
+debian/*.substvars
+debian/*.log
+../eksisozluk-scraper_*.deb
+../eksisozluk-scraper_*.dsc
+../eksisozluk-scraper_*.tar.gz
+../eksisozluk-scraper_*.buildinfo
+../eksisozluk-scraper_*.changes
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
-*.sublime-project
-*.sublime-workspace
-
-# Scraper output files
-*.json
-!requirements.txt
-!package.json
-!package-lock.json
-!tsconfig.json
-output/
-results/
-*.log
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pytest
-.pytest_cache/
-.coverage
-htmlcov/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Temporary files
-*.tmp
-*.bak
-*.swp
-*~
-
-# OS-specific
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Project specific
-test_output.json
-scrape_*.json
-

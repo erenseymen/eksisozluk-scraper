@@ -1,0 +1,28 @@
+Source: eksisozluk-scraper
+Section: utils
+Priority: optional
+Maintainer: Erens <erens@example.com>
+Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
+Standards-Version: 4.6.0
+Homepage: https://github.com/erens/ekşi-sözlük-scraper
+
+Package: eksisozluk-scraper
+Architecture: all
+Depends: ${misc:Depends},
+         python3,
+         python3-cloudscraper,
+         python3-bs4,
+         python3-argcomplete
+Description: Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper
+ Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda:
+ JSON (varsayılan), CSV ve Markdown.
+ .
+ Özellikler:
+  - Terminal tabanlı CLI arayüzü
+  - Çoklu çıktı formatı desteği (JSON, CSV, Markdown)
+  - Format otomatik tespiti (dosya uzantısından)
+  - Başlık bazlı tüm entry scraping
+  - Zaman aralığına göre filtreleme (gün/hafta/ay/yıl)
+  - Tab completion desteği
+  - Rate limiting ve otomatik retry mekanizması
+

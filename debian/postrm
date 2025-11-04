@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+# Remove bash completion
+if [ -f /usr/share/bash-completion/completions/eksisozluk-scraper ]; then
+    rm -f /usr/share/bash-completion/completions/eksisozluk-scraper
+fi
+
+# Update bash completion cache
+if command -v update-bash-completion >/dev/null 2>&1; then
+    update-bash-completion 2>/dev/null || true
+fi
+
+# DEBHELPER#
+exit 0
+

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+# Activate bash completion if bash-completion is installed
+if [ -f /usr/share/bash-completion/bash_completion ]; then
+    if command -v register-python-argcomplete >/dev/null 2>&1; then
+        # Use argcomplete's register-python-argcomplete for better completion
+        register-python-argcomplete eksisozluk-scraper > /usr/share/bash-completion/completions/eksisozluk-scraper 2>/dev/null || true
+    fi
+fi
+
+# Update bash completion cache
+if command -v update-bash-completion >/dev/null 2>&1; then
+    update-bash-completion 2>/dev/null || true
+fi
+
+# DEBHELPER#
+exit 0
+

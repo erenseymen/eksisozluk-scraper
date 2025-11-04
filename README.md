@@ -118,6 +118,7 @@ Markdown formatı, okunabilir ve yapılandırılmış bir çıktı üretir. Her 
 ## Özellikler
 
 - ✅ Terminal tabanlı CLI arayüzü
+- ✅ Tab completion desteği (bash/zsh)
 - ✅ Çoklu çıktı formatı desteği (JSON, CSV, Markdown)
 - ✅ Format otomatik tespiti (dosya uzantısından)
 - ✅ AI-friendly JSON çıktı formatı (varsayılan)
@@ -126,6 +127,7 @@ Markdown formatı, okunabilir ve yapılandırılmış bir çıktı üretir. Her 
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting (sane pauses)
 - ✅ Hata durumunda otomatik retry mekanizması
+- ✅ Debian paket desteği
 - ✅ Otomatik test suite
 
 ## Testler
@@ -149,8 +151,67 @@ Test suite aşağıdaki özellikleri doğrular:
 - ✅ Entry yapı doğrulaması
 - ✅ Rate limiting
 
+## Tab Completion
+
+The scraper supports tab completion for bash and zsh shells. After installation:
+
+### Bash
+```bash
+# If using Debian package, completion is automatically installed
+# Otherwise, activate manually:
+source <(register-python-argcomplete eksisozluk-scraper)
+
+# Or add to ~/.bashrc:
+eval "$(register-python-argcomplete eksisozluk-scraper)"
+```
+
+### Zsh
+```bash
+# Activate argcomplete for zsh
+autoload -U bashcompinit
+bashcompinit
+eval "$(register-python-argcomplete eksisozluk-scraper)"
+```
+
+### Usage
+After activation, you can use tab completion:
+```bash
+eksisozluk-scraper <TAB>              # Shows input prompt
+eksisozluk-scraper --<TAB>             # Shows all options
+eksisozluk-scraper --output <TAB>      # Completes file names (.json, .csv, .md)
+```
+
+## Debian Package Installation
+
+### Building the Package
+
+See [BUILD.md](BUILD.md) for detailed build instructions.
+
+Quick build:
+```bash
+# Install build dependencies
+sudo apt-get install build-essential debhelper dh-python python3-all python3-setuptools
+
+# Build package
+make build-deb
+
+# Install package
+sudo dpkg -i ../eksisozluk-scraper_*.deb
+sudo apt-get install -f  # Install missing dependencies if any
+```
+
+### Using the Installed Package
+
+After installation, the `eksisozluk-scraper` command is available system-wide:
+```bash
+eksisozluk-scraper "python" --days 7 --output results.json
+```
+
+Tab completion is automatically enabled if bash-completion is installed.
+
 ## Notlar
 
 - Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
 - Hata durumlarında otomatik olarak belirli aralıklarla tekrar dener.
+- Tab completion requires `argcomplete` package to be installed.
 

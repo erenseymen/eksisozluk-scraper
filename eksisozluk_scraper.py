@@ -5,6 +5,10 @@ Terminal tabanlı, AI-friendly output üreten scraper.
 """
 
 import argparse
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 import csv
 import json
 import re
@@ -1499,6 +1503,10 @@ def main():
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
+    
+    # Enable tab completion if argcomplete is available
+    if argcomplete:
+        argcomplete.autocomplete(parser)
     
     args = parser.parse_args()
     
