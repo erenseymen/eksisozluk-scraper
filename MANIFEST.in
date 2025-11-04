@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include requirements.txt
+include setup.py
+recursive-include completions *.fish
+recursive-include debian *.bash-completion
+recursive-include templates *.html
+include eksisozluk_scraper.py
+
