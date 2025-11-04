@@ -20,25 +20,28 @@ Cursor (yapay zeka) ile yazılmıştır.
 
 ## Kurulum
 
-### Yöntem 1: Debian/Ubuntu Paketi (Önerilen)
+[![Debian Package](https://img.shields.io/badge/Debian-Download-blue?style=for-the-badge&logo=debian)](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper_1.1.0-1_all.deb)
+[![RPM Package](https://img.shields.io/badge/RPM-Download-red?style=for-the-badge&logo=redhat)](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper-1.1.0-1.noarch.rpm)
+[![AUR Package](https://img.shields.io/badge/AUR-Install-yellow?style=for-the-badge&logo=arch-linux)](https://aur.archlinux.org/packages/eksisozluk-scraper)
 
-Debian/Ubuntu sistemlerde hazır paketi kullanarak kurulum yapabilirsiniz:
+### Debian/Ubuntu (.deb)
 
 ```bash
 # Paketi indirin ve kurun
+wget https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper_1.1.0-1_all.deb
 sudo dpkg -i eksisozluk-scraper_1.1.0-1_all.deb
-
-# Eksik bağımlılıkları yükleyin (gerekirse)
-sudo apt-get install -f
+sudo apt-get install -f  # Eksik bağımlılıkları yükleyin (gerekirse)
 ```
 
-Kurulumdan sonra `eksisozluk-scraper` komutu sistem genelinde kullanılabilir olacaktır.
+### RPM-based Distributions (.rpm)
 
-**Not:** Paket, bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
+```bash
+# Paketi indirin ve kurun
+wget https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper-1.1.0-1.noarch.rpm
+sudo rpm -i eksisozluk-scraper-1.1.0-1.noarch.rpm
+```
 
-### Yöntem 2: Arch Linux (AUR)
-
-Arch Linux kullanıcıları için AUR paketi mevcuttur:
+### Arch Linux (AUR)
 
 ```bash
 # AUR helper ile (örnek: yay)
@@ -50,11 +53,7 @@ cd eksisozluk-scraper
 makepkg -si
 ```
 
-Kurulumdan sonra `eksisozluk-scraper` komutu sistem genelinde kullanılabilir olacaktır.
-
-**Not:** Paket, bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
-
-### Yöntem 3: Python Script Olarak Çalıştırma
+### Python Script Olarak Çalıştırma
 
 Python scriptini doğrudan çalıştırabilirsiniz:
 
@@ -65,6 +64,8 @@ pip3 install -r requirements.txt
 # Scripti çalıştır
 python3 eksisozluk_scraper.py "başlık-adı"
 ```
+
+**Not:** Paket kurulumları bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
 
 ## Kullanım
 
