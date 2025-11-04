@@ -5,6 +5,7 @@ Terminal tabanlı, AI-friendly output üreten scraper.
 """
 
 import argparse
+import csv
 import json
 import re
 import time
@@ -428,8 +429,111 @@ class EksisozlukScraper:
         sorted_entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
         return sorted_entries
     
+    def _detect_format_from_filename(self, filename: str) -> str:
+        """Dosya adından format tespit eder (csv, markdown, json)"""
+        if not filename:
+            return 'json'
+        
+        filename_lower = filename.lower()
+        if filename_lower.endswith('.csv'):
+            return 'csv'
+        elif filename_lower.endswith(('.md', '.markdown')):
+            return 'markdown'
+        else:
+            return 'json'
+    
+    def _write_json(self, entries: List[Dict]):
+        """Entry'leri JSON formatında yazar"""
+        output_data = {
+            'scrape_info': {
+                'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
+                'total_entries': len(entries),
+                'input': self.scrape_input or '',
+                'time_filter': self.scrape_time_filter
+            },
+            'entries': entries
+        }
+        
+        with open(self.output_file, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, ensure_ascii=False, indent=2)
+    
+    def _write_csv(self, entries: List[Dict]):
+        """Entry'leri CSV formatında yazar"""
+        with open(self.output_file, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            
+            # Scrape info'yu yorum olarak yaz
+            scrape_info = {
+                'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
+                'total_entries': len(entries),
+                'input': self.scrape_input or '',
+                'time_filter': self.scrape_time_filter
+            }
+            f.write(f"# Scrape Info: {json.dumps(scrape_info, ensure_ascii=False)}\n")
+            
+            # CSV başlıkları
+            headers = ['entry_id', 'title', 'date', 'author', 'content']
+            writer.writerow(headers)
+            
+            # Entry'leri yaz
+            for entry in entries:
+                row = [
+                    entry.get('entry_id', ''),
+                    entry.get('title', ''),
+                    entry.get('date', ''),
+                    entry.get('author', ''),
+                    entry.get('content', '')
+                ]
+                writer.writerow(row)
+    
+    def _write_markdown(self, entries: List[Dict]):
+        """Entry'leri Markdown formatında yazar"""
+        with open(self.output_file, 'w', encoding='utf-8') as f:
+            # Scrape info'yu markdown section olarak yaz
+            f.write("# Ekşi Sözlük Scrape Results\n\n")
+            f.write("## Scrape Info\n\n")
+            scrape_info = {
+                'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
+                'total_entries': len(entries),
+                'input': self.scrape_input or '',
+                'time_filter': self.scrape_time_filter
+            }
+            f.write(f"- **Timestamp**: {scrape_info['timestamp']}\n")
+            f.write(f"- **Total Entries**: {scrape_info['total_entries']}\n")
+            f.write(f"- **Input**: {scrape_info['input']}\n")
+            if scrape_info['time_filter']:
+                f.write(f"- **Time Filter**: {scrape_info['time_filter']}\n")
+            f.write("\n")
+            
+            # Markdown tablo başlıkları
+            f.write("## Entries\n\n")
+            f.write("| Entry ID | Title | Date | Author | Content |\n")
+            f.write("|----------|-------|------|--------|---------|\n")
+            
+            # Entry'leri yaz
+            for entry in entries:
+                # Markdown tablo içeriğinde pipe karakterlerini escape et
+                def escape_markdown(text):
+                    if text is None:
+                        return ''
+                    text = str(text)
+                    # Pipe karakterlerini escape et
+                    text = text.replace('|', '\\|')
+                    # Satır sonlarını <br> ile değiştir (tablo için)
+                    text = text.replace('\n', '<br>')
+                    return text
+                
+                row = [
+                    escape_markdown(entry.get('entry_id', '')),
+                    escape_markdown(entry.get('title', '')),
+                    escape_markdown(entry.get('date', '')),
+                    escape_markdown(entry.get('author', '')),
+                    escape_markdown(entry.get('content', ''))
+                ]
+                f.write(f"| {' | '.join(row)} |\n")
+    
     def _write_entries_to_file(self, entries: List[Dict]):
-        """Entry'leri JSON dosyasına yazar (incremental update)"""
+        """Entry'leri dosyaya yazar, format dosya uzantısına göre otomatik tespit edilir"""
         # Mevcut entry'leri her zaman güncelle (Ctrl+C için gerekli)
         self.current_entries = entries
         
@@ -438,20 +542,16 @@ class EksisozlukScraper:
             return
         
         try:
-            # Output dosyası yapısını oluştur
-            output_data = {
-                'scrape_info': {
-                    'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
-                    'total_entries': len(entries),
-                    'input': self.scrape_input or '',
-                    'time_filter': self.scrape_time_filter
-                },
-                'entries': entries
-            }
+            # Format'ı dosya uzantısından tespit et
+            output_format = self._detect_format_from_filename(self.output_file)
             
-            # JSON'u dosyaya yaz
-            with open(self.output_file, 'w', encoding='utf-8') as f:
-                json.dump(output_data, f, ensure_ascii=False, indent=2)
+            # Format'a göre ilgili formatter'ı çağır
+            if output_format == 'csv':
+                self._write_csv(entries)
+            elif output_format == 'markdown':
+                self._write_markdown(entries)
+            else:  # json (default)
+                self._write_json(entries)
         
         except Exception as e:
             print(f"Uyarı: Entry'ler dosyaya yazılamadı: {e}", file=sys.stderr)
