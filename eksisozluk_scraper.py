@@ -1414,7 +1414,7 @@ class EksisozlukScraper:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper',
+        description='Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper. Desteklenen çıktı formatları: JSON (varsayılan), CSV (.csv), Markdown (.md, .markdown). Format dosya uzantısından otomatik tespit edilir.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Örnekler:
@@ -1442,6 +1442,11 @@ def main():
   # Belirli bir entry'den itibaren scrape et:
   python eksisozluk_scraper.py "https://eksisozluk.com/python--123456"
 
+  # Farklı çıktı formatları:
+  python eksisozluk_scraper.py "python" --output sonuclar.json  # JSON formatı
+  python eksisozluk_scraper.py "python" --output sonuclar.csv    # CSV formatı
+  python eksisozluk_scraper.py "python" --output sonuclar.md     # Markdown formatı
+
   # Özel parametreler:
   python eksisozluk_scraper.py "python" --delay 2.0 --max-retries 5
         """
@@ -1456,7 +1461,7 @@ def main():
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
     parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
-    parser.add_argument('--output', '-o', help='Çıktı dosyası (varsayılan: stdout)')
+    parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
     
     args = parser.parse_args()

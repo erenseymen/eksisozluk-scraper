@@ -1,6 +1,6 @@
 # Ekşi Sözlük Scraper
 
-Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly JSON formatında.
+Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda: JSON (varsayılan), CSV ve Markdown.
 
 ## Kurulum
 
@@ -44,8 +44,19 @@ python eksisozluk_scraper.py "https://eksisozluk.com/başlık-adı--entry-id"
 
 ### Çıktıyı Dosyaya Kaydetme
 
+Scraper, çıktı formatını dosya uzantısından otomatik olarak tespit eder:
+
 ```bash
+# JSON formatı (varsayılan)
 python eksisozluk_scraper.py "başlık-adı" --output sonuclar.json
+
+# CSV formatı
+python eksisozluk_scraper.py "başlık-adı" --output sonuclar.csv
+
+# Markdown formatı
+python eksisozluk_scraper.py "başlık-adı" --output sonuclar.md
+# veya
+python eksisozluk_scraper.py "başlık-adı" --output sonuclar.markdown
 ```
 
 ### Gelişmiş Parametreler
@@ -61,9 +72,17 @@ python eksisozluk_scraper.py "başlık-adı" --max-retries 5
 python eksisozluk_scraper.py "başlık-adı" --retry-delay 10.0
 ```
 
-## Çıktı Formatı
+## Çıktı Formatları
 
-Scraper, AI tarafından kolayca işlenebilecek JSON formatında çıktı üretir:
+Scraper, üç farklı çıktı formatını destekler. Format, dosya uzantısından otomatik olarak tespit edilir:
+
+- **JSON** (varsayılan): `.json` uzantılı dosyalar veya uzantı belirtilmemişse
+- **CSV**: `.csv` uzantılı dosyalar
+- **Markdown**: `.md` veya `.markdown` uzantılı dosyalar
+
+### JSON Formatı
+
+JSON formatı (varsayılan), AI tarafından kolayca işlenebilecek yapıdadır:
 
 ```json
 {
@@ -88,12 +107,22 @@ Scraper, AI tarafından kolayca işlenebilecek JSON formatında çıktı üretir
 }
 ```
 
+### CSV Formatı
+
+CSV formatı, veri analizi ve Excel gibi programlarda kullanım için uygundur. Sadece temel alanları içerir: `entry_id`, `title`, `date`, `author`, `content`.
+
+### Markdown Formatı
+
+Markdown formatı, okunabilir tablo formatında çıktı üretir. Scrape bilgileri ve entry'ler tablo halinde sunulur.
+
 ## Özellikler
 
 - ✅ Terminal tabanlı CLI arayüzü
-- ✅ AI-friendly JSON çıktı formatı
+- ✅ Çoklu çıktı formatı desteği (JSON, CSV, Markdown)
+- ✅ Format otomatik tespiti (dosya uzantısından)
+- ✅ AI-friendly JSON çıktı formatı (varsayılan)
 - ✅ Başlık bazlı tüm entry scraping
-- ✅ Zaman aralığına göre filtreleme (gün/hafta)
+- ✅ Zaman aralığına göre filtreleme (gün/hafta/ay/yıl)
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting (sane pauses)
 - ✅ Hata durumunda otomatik retry mekanizması
