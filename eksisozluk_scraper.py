@@ -422,6 +422,12 @@ class EksisozlukScraper:
             print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
     
+    def _sort_entries_by_date(self, entries: List[Dict]) -> List[Dict]:
+        """Entry'leri tarihe göre sıralar (en eski önce)"""
+        sorted_entries = entries.copy()
+        sorted_entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
+        return sorted_entries
+    
     def _write_entries_to_file(self, entries: List[Dict]):
         """Entry'leri JSON dosyasına yazar (incremental update)"""
         # Mevcut entry'leri her zaman güncelle (Ctrl+C için gerekli)
@@ -1348,20 +1354,22 @@ def main():
                 scraper._write_entries_to_file(entries_to_output)
                 print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
         else:
-            # Output dosyası yoksa terminale yazdır
+            # Output dosyası yoksa terminale yazdır (tarihe göre sırala)
             if entries_to_output:
+                # Entry'leri tarihe göre sırala
+                sorted_entries = scraper._sort_entries_by_date(entries_to_output)
                 output_data = {
                     'scrape_info': {
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
-                        'total_entries': len(entries_to_output),
+                        'total_entries': len(sorted_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string
                     },
-                    'entries': entries_to_output
+                    'entries': sorted_entries
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print(output_json)
-                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry terminale yazdırıldı", file=sys.stderr)
+                print(f"INFO: O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
             else:
                 print("INFO: Henüz entry toplanmadı", file=sys.stderr)
         
@@ -1392,33 +1400,37 @@ def main():
                 scraper._write_entries_to_file(entries_to_output)
                 print(f"\nINFO: O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
         else:
-            # Output dosyası yoksa terminale yazdır
+            # Output dosyası yoksa terminale yazdır (tarihe göre sırala)
             if entries_to_output:
+                # Entry'leri tarihe göre sırala
+                sorted_entries = scraper._sort_entries_by_date(entries_to_output)
                 output_data = {
                     'scrape_info': {
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
-                        'total_entries': len(entries_to_output),
+                        'total_entries': len(sorted_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string
                     },
-                    'entries': entries_to_output
+                    'entries': sorted_entries
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print("\n" + output_json)
-                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry terminale yazdırıldı", file=sys.stderr)
+                print(f"INFO: O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
         
         sys.exit(0)
     
     # Çıktıyı hazırla (output dosyası belirtilmemişse stdout'a yaz)
     if not args.output:
+        # Entry'leri tarihe göre sırala
+        sorted_entries = scraper._sort_entries_by_date(entries)
         output_data = {
             'scrape_info': {
                 'timestamp': datetime.now().isoformat(),
-                'total_entries': len(entries),
+                'total_entries': len(sorted_entries),
                 'input': args.input,
                 'time_filter': time_filter_string
             },
-            'entries': entries
+            'entries': sorted_entries
         }
         
         # JSON olarak çıktı ver
