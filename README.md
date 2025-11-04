@@ -5,7 +5,7 @@ Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda
 ## Özellikler
 
 - ✅ Terminal tabanlı CLI arayüzü
-- ✅ Tab completion desteği (bash/zsh)
+- ✅ Tab completion desteği (bash/zsh/fish)
 - ✅ Çoklu çıktı formatı desteği (JSON, CSV, Markdown)
 - ✅ Format otomatik tespiti (dosya uzantısından)
 - ✅ AI-friendly JSON çıktı formatı (varsayılan)
@@ -33,7 +33,7 @@ sudo apt-get install -f
 
 Kurulumdan sonra `eksisozluk-scraper` komutu sistem genelinde kullanılabilir olacaktır.
 
-**Not:** Paket, bash completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
+**Not:** Paket, bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
 
 ### Yöntem 2: Python Script Olarak Çalıştırma
 
@@ -187,11 +187,11 @@ Markdown formatı, okunabilir ve yapılandırılmış bir çıktı üretir. Her 
 
 ## Tab Completion
 
-Scraper, bash ve zsh shell'leri için tab completion desteği sunar.
+Scraper, bash, zsh ve fish shell'leri için tab completion desteği sunar.
 
 ### Debian Paketi ile Kurulum
 
-Debian paketi ile kurulum yaptıysanız, bash completion otomatik olarak yüklenir. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
+Debian paketi ile kurulum yaptıysanız, bash ve fish completion otomatik olarak yüklenir. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
 
 ### Manuel Aktifleştirme
 
@@ -221,6 +221,23 @@ bashcompinit
 eval "$(register-python-argcomplete eksisozluk-scraper)"
 ```
 
+#### Fish
+
+Fish completion için iki seçenek vardır:
+
+**Yöntem 1: Debian Paketi ile (Önerilen)**
+Debian paketi ile kurulum yaptıysanız, Fish completion otomatik olarak `/usr/share/fish/vendor_completions.d/` dizinine yüklenir ve aktif olur.
+
+**Yöntem 2: Manuel Kurulum**
+Eğer manuel kurulum yaptıysanız, completion dosyasını kopyalayın:
+
+```fish
+# Completion dosyasını kopyala
+cp completions/eksisozluk-scraper.fish ~/.config/fish/completions/
+
+# Yeni bir terminal açın veya completion'ı yeniden yükleyin
+```
+
 ### Kullanım
 
 Tab completion aktif olduktan sonra:
@@ -231,7 +248,7 @@ eksisozluk-scraper --<TAB>             # Tüm flag'leri listeler
 eksisozluk-scraper --output <TAB>      # Dosya isimlerini tamamlar (.json, .csv, .md)
 ```
 
-**Not:** Tab completion için `argcomplete` paketinin kurulu olması gerekir. Debian paketi ile kurulum yaptıysanız bu otomatik olarak yüklenir.
+**Not:** Bash ve zsh için tab completion için `argcomplete` paketinin kurulu olması gerekir (Debian paketi ile otomatik yüklenir). Fish completion için `argcomplete` gerekmez, Fish'in kendi completion sistemi kullanılır.
 
 ## Testler
 
@@ -272,6 +289,7 @@ make build-deb
 
 ### Tab Completion Çalışmıyor
 
+**Bash/Zsh için:**
 1. `argcomplete` paketinin kurulu olduğundan emin olun:
    ```bash
    pip3 install argcomplete
@@ -280,6 +298,16 @@ make build-deb
 2. Completion'ı manuel aktifleştirin (yukarıdaki Tab Completion bölümüne bakın)
 
 3. Yeni bir terminal açın
+
+**Fish için:**
+1. Completion dosyasının doğru konumda olduğundan emin olun:
+   - Sistem geneli: `/usr/share/fish/vendor_completions.d/eksisozluk-scraper.fish`
+   - Kullanıcı: `~/.config/fish/completions/eksisozluk-scraper.fish`
+
+2. Yeni bir terminal açın veya completion'ı yeniden yükleyin:
+   ```fish
+   source ~/.config/fish/completions/eksisozluk-scraper.fish
+   ```
 
 ### Paket Kurulum Hataları
 
