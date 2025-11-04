@@ -82,10 +82,10 @@ class EksisozlukScraper:
                 
                 attempt += 1
                 if attempt < self.max_retries:
-                    print(f"WARNING: Request hatası (deneme {attempt}/{self.max_retries}): {e}", file=sys.stderr)
+                    print(f"Uyarı: İstek hatası (deneme {attempt}/{self.max_retries}): {e}", file=sys.stderr)
                     time.sleep(self.retry_delay)
                 else:
-                    print(f"ERROR: Maksimum deneme sayısına ulaşıldı: {url}", file=sys.stderr)
+                    print(f"Hata: Maksimum deneme sayısına ulaşıldı: {url}", file=sys.stderr)
                     return None
         
         return None
@@ -200,7 +200,7 @@ class EksisozlukScraper:
                 return entry_data
             
         except Exception as e:
-            print(f"WARNING: Entry parse hatası: {e}", file=sys.stderr)
+            print(f"Uyarı: Entry ayrıştırma hatası: {e}", file=sys.stderr)
         
         return None
     
@@ -263,7 +263,7 @@ class EksisozlukScraper:
                 return datetime(year, month, day)
             
         except Exception as e:
-            print(f"WARNING: Tarih parse hatası: {date_str} - {e}", file=sys.stderr)
+            print(f"Uyarı: Tarih ayrıştırma hatası: {date_str} - {e}", file=sys.stderr)
         
         return None
     
@@ -287,7 +287,7 @@ class EksisozlukScraper:
             
             return None
         except Exception as e:
-            print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
+            print(f"Uyarı: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
     
     def _fetch_entry_by_id(self, entry_id: str) -> Optional[Dict]:
@@ -366,7 +366,7 @@ class EksisozlukScraper:
         
         # Referans edilen entry'leri fetch et (sadece main list'te olmayanlar)
         for ref_entry_id, parent_entry_ids in entries_to_fetch.items():
-            print(f"INFO: Referans edilen entry fetch ediliyor: {ref_entry_id}", file=sys.stderr)
+            print(f"Referans edilen entry alınıyor: {ref_entry_id}", file=sys.stderr)
             referenced_entry = self._fetch_entry_by_id(ref_entry_id)
             if referenced_entry:
                 # Entry ID'yi işaretle
@@ -419,7 +419,7 @@ class EksisozlukScraper:
             
             return max_page if max_page > 1 else None
         except Exception as e:
-            print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
+            print(f"Uyarı: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
     
     def _sort_entries_by_date(self, entries: List[Dict]) -> List[Dict]:
@@ -454,14 +454,45 @@ class EksisozlukScraper:
                 json.dump(output_data, f, ensure_ascii=False, indent=2)
         
         except Exception as e:
-            print(f"WARNING: Entry'ler dosyaya yazılamadı: {e}", file=sys.stderr)
+            print(f"Uyarı: Entry'ler dosyaya yazılamadı: {e}", file=sys.stderr)
     
     def scrape_title(self, title: str, time_filter: Optional[timedelta] = None, time_filter_string: Optional[str] = None) -> List[Dict]:
         """Bir başlıktaki tüm entry'leri scrape eder"""
         # Scrape bilgilerini kaydet
         self.scrape_start_time = datetime.now()
         self.scrape_input = title
-        self.scrape_time_filter = time_filter_string if time_filter_string else (f"{time_filter.days} days" if time_filter else None)
+        # Zaman filtresi string'ini Türkçeleştir
+        if time_filter_string:
+            # İngilizce string'i Türkçeleştir
+            if 'months' in time_filter_string:
+                months_num = time_filter_string.split()[0]
+                self.scrape_time_filter = f"{months_num} ay"
+            elif 'weeks' in time_filter_string:
+                weeks_num = time_filter_string.split()[0]
+                self.scrape_time_filter = f"{weeks_num} hafta"
+            elif 'days' in time_filter_string:
+                days_num = time_filter_string.split()[0]
+                self.scrape_time_filter = f"{days_num} gün"
+            elif 'years' in time_filter_string:
+                years_num = time_filter_string.split()[0]
+                self.scrape_time_filter = f"{years_num} yıl"
+            else:
+                self.scrape_time_filter = time_filter_string
+        elif time_filter:
+            days = time_filter.days
+            if days >= 365:
+                years = days // 365
+                self.scrape_time_filter = f"{years} yıl"
+            elif days >= 30:
+                months = days // 30
+                self.scrape_time_filter = f"{months} ay"
+            elif days >= 7:
+                weeks = days // 7
+                self.scrape_time_filter = f"{weeks} hafta"
+            else:
+                self.scrape_time_filter = f"{days} gün"
+        else:
+            self.scrape_time_filter = None
         
         entries = []
         page = 1
@@ -469,7 +500,7 @@ class EksisozlukScraper:
         title_slug = None  # Slug'ı saklamak için
         pagination_format = None  # Pagination URL formatını sakla
         
-        print(f"Başlık scrape ediliyor: {title}", file=sys.stderr)
+        print(f"Başlık taranıyor: {title}", file=sys.stderr)
         
         # Eğer zaman filtresi varsa, son sayfadan başlayıp geriye doğru gideceğiz
         reverse_order = False
@@ -489,13 +520,13 @@ class EksisozlukScraper:
                     url = f"{self.BASE_URL}/{title}?p={page}"
             
             # URL'i logla
-            print(f"INFO: Erişilen URL: {url}", file=sys.stderr)
+            print(f"Sayfaya bakılıyor: {url}", file=sys.stderr)
             
             response = self._make_request(url)
             if not response:
                 # 404 veya başka bir hata - sayfa yok veya erişilemiyor
                 if page > 1:
-                    print(f"INFO: Sayfa {page} bulunamadı, scraping sonlandırılıyor", file=sys.stderr)
+                    print(f"Sayfa {page} bulunamadı, tarama sonlandırılıyor", file=sys.stderr)
                 break
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -516,8 +547,8 @@ class EksisozlukScraper:
                     if len(parts) == 2:
                         normalized_slug = parts[0]  # kis-gunesi
                         title_id = parts[1]  # 46338
-                        print(f"INFO: Topic ID bulundu: {title_id}", file=sys.stderr)
-                        print(f"INFO: Normalize edilmiş slug bulundu: {normalized_slug}", file=sys.stderr)
+                        print(f"Başlık kimliği bulundu: {title_id}", file=sys.stderr)
+                        print(f"Güncellenmiş başlık adresi bulundu: {normalized_slug}", file=sys.stderr)
                     else:
                         # Alternatif: URL'de -- ile başlayan sayı ara
                         alt_match = re.search(r'--(\d+)', response_url)
@@ -529,7 +560,7 @@ class EksisozlukScraper:
                                 normalized_slug = slug_match.group(1)
                             else:
                                 normalized_slug = title  # Fallback olarak orijinal title kullan
-                            print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
+                            print(f"Başlık kimliği bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
                 else:
                     # Alternatif: URL'de -- ile başlayan sayı ara
                     alt_match = re.search(r'--(\d+)', response_url)
@@ -548,11 +579,11 @@ class EksisozlukScraper:
                 if title_id:
                     if normalized_slug:
                         pagination_format = f"/{normalized_slug}--{title_id}?p={{page}}"
-                        print(f"INFO: Pagination formatı bulundu (güncellenmiş URL'den): {pagination_format}", file=sys.stderr)
+                        print(f"Sayfa numaralandırma formatı bulundu: {pagination_format}", file=sys.stderr)
                     else:
                         # Fallback: Orijinal title kullan (normalized_slug bulunamadıysa)
                         pagination_format = f"/{title}--{title_id}?p={{page}}"
-                        print(f"INFO: Pagination formatı bulundu (fallback, orijinal title ile): {pagination_format}", file=sys.stderr)
+                        print(f"Sayfa numaralandırma formatı bulundu (yedek yöntem): {pagination_format}", file=sys.stderr)
                 else:
                     # Son çare: pagination linklerinden formatı çıkar
                     pagination_link = soup.find('a', href=re.compile(r'p=\d+'))
@@ -565,24 +596,24 @@ class EksisozlukScraper:
                             title_id = params['id'][0]
                             title_slug = params['slug'][0]
                             pagination_format = f"{parsed_url.path}?p={{page}}&id={title_id}&slug={title_slug}"
-                            print(f"INFO: Pagination formatı bulundu: {pagination_format}", file=sys.stderr)
+                            print(f"Sayfa numaralandırma formatı bulundu: {pagination_format}", file=sys.stderr)
             
             # İlk sayfada pagination'dan son sayfa numarasını bul
             if page == 1 and not last_page:
                 last_page = self._find_last_page_from_pagination(soup)
                 
                 if last_page:
-                    print(f"INFO: Son sayfa bulundu: {last_page}", file=sys.stderr)
+                    print(f"Son sayfa numarası: {last_page}", file=sys.stderr)
                     
                     # Zaman filtresi varsa son sayfadan başla
                     if time_filter:
                         page = last_page
                         reverse_order = True
-                        print(f"INFO: Son sayfadan başlayarak geriye doğru taranacak (sayfa {last_page})", file=sys.stderr)
+                        print(f"Son sayfadan başlayıp geriye doğru taranıyor (sayfa {last_page}'den başlıyor)", file=sys.stderr)
                         # İlk sayfayı atla, direkt son sayfaya git
                         continue
                 else:
-                    print(f"WARNING: Son sayfa bulunamadı", file=sys.stderr)
+                    print(f"Uyarı: Son sayfa bulunamadı", file=sys.stderr)
             
             # Entry'leri bul - çoklu selector stratejisi (önce entry'leri bul, sonra kontrol et)
             # ÖNEMLİ: Ekşi Sözlük'te entry'ler ul#entry-item-list içinde
@@ -610,7 +641,7 @@ class EksisozlukScraper:
                 entry_elements = soup.find_all('div', {'class': 'content-item'})
             
             if not entry_elements:
-                print(f"INFO: Sayfa {page}'de entry bulunamadı, scraping sonlandırılıyor", file=sys.stderr)
+                print(f"Sayfa {page}'de entry bulunamadı, tarama sonlandırılıyor", file=sys.stderr)
                 break
             
             page_entries = []
@@ -647,13 +678,13 @@ class EksisozlukScraper:
                         all_entries_too_old = False
             
             entries.extend(page_entries)
-            print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
+            print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
             
             # Max entries kontrolü
             if self.max_entries and len(entries) >= self.max_entries:
                 # Limit aşıldı, fazla entry'leri kaldır
                 entries = entries[:self.max_entries]
-                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
                 # Entry'leri dosyaya yaz (incremental update)
                 self._write_entries_to_file(entries)
                 break
@@ -666,7 +697,21 @@ class EksisozlukScraper:
                 if entry_elements:
                     # Sayfada entry var ama hepsi çok eski
                     filter_display = self.scrape_time_filter or f"{time_filter.days} gün"
-                    print(f"INFO: Zaman filtresi nedeniyle scraping durduruldu (sayfa {page}'deki tüm entry'ler belirtilen süreyi ({filter_display}) aştı)", file=sys.stderr)
+                    # İngilizce time filter string'i Türkçeleştir
+                    if filter_display:
+                        if 'months' in filter_display:
+                            months_num = filter_display.split()[0]
+                            filter_display = f"{months_num} ay"
+                        elif 'weeks' in filter_display:
+                            weeks_num = filter_display.split()[0]
+                            filter_display = f"{weeks_num} hafta"
+                        elif 'days' in filter_display:
+                            days_num = filter_display.split()[0]
+                            filter_display = f"{days_num} gün"
+                        elif 'years' in filter_display:
+                            years_num = filter_display.split()[0]
+                            filter_display = f"{years_num} yıl"
+                    print(f"Bu sayfadaki entry'ler çok eskiymiş ({filter_display} süresini aşmış), tarama durduruldu", file=sys.stderr)
                     break
                 else:
                     # Sayfada entry yok, bir sonraki sayfaya geç
@@ -686,7 +731,7 @@ class EksisozlukScraper:
                 
                 # Son sayfa numarasından fazla gidebiliyor muyuz kontrol et
                 if last_page and page >= last_page:
-                    print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
+                    print(f"Son sayfa numarasına ulaşıldı ({last_page}), tarama sonlandırılıyor", file=sys.stderr)
                     break
                 
                 # Bir sonraki sayfaya geç
@@ -696,7 +741,7 @@ class EksisozlukScraper:
         
         # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
         if self.fetch_referenced:
-            print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+            print(f"Referans edilen entry'ler kontrol ediliyor, biraz bekleyin...", file=sys.stderr)
             referenced_entries_map = self._fetch_referenced_entries(entries)
             if referenced_entries_map:
                 total_referenced = 0
@@ -706,7 +751,7 @@ class EksisozlukScraper:
                     if entry_id in referenced_entries_map:
                         entry['referenced_content'] = referenced_entries_map[entry_id]
                         total_referenced += len(referenced_entries_map[entry_id])
-                print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+                print(f"{total_referenced} referans edilen entry eklendi", file=sys.stderr)
                 # Entry'leri dosyaya yaz (güncellenmiş liste ile)
                 self._write_entries_to_file(entries)
         
@@ -716,11 +761,11 @@ class EksisozlukScraper:
         
         # Eğer son sayfadan başlanarak alındıysa ve output dosyası belirtilmişse, entry'leri tarihe göre sırala
         if reverse_order and self.output_file:
-            print(f"INFO: Entry'ler tarihe göre sıralanıyor...", file=sys.stderr)
+            print(f"Entry'ler tarihe göre sıralanıyor, biraz bekleyin...", file=sys.stderr)
             entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
             # Sıralanmış entry'leri dosyaya yaz
             self._write_entries_to_file(entries)
-            print(f"INFO: Entry'ler tarihe göre sıralandı ve dosyaya yazıldı", file=sys.stderr)
+            print(f"Entry'ler tarihe göre sıralandı ve dosyaya yazıldı, işlem tamamlandı", file=sys.stderr)
         
         return entries
     
@@ -753,7 +798,7 @@ class EksisozlukScraper:
             # Entry sayfasını fetch et
             response = self._make_request(entry_url)
             if not response:
-                print(f"ERROR: Entry sayfası yüklenemedi: {entry_url}", file=sys.stderr)
+                print(f"Hata: Entry sayfası yüklenemedi: {entry_url}", file=sys.stderr)
                 return entries
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -770,7 +815,7 @@ class EksisozlukScraper:
                     if topic_match:
                         title = topic_match.group(1)
                         title_id = topic_match.group(2)
-                        print(f"INFO: Topic bulundu (h1 link): {title} (ID: {title_id})", file=sys.stderr)
+                        print(f"Başlık bulundu (h1 link): {title} (ID: {title_id})", file=sys.stderr)
             
             # Eğer bulunamadıysa, sayfa title'ından çıkar
             if not title:
@@ -791,7 +836,7 @@ class EksisozlukScraper:
                             if test_match:
                                 title = test_match.group(1)
                                 title_id = test_match.group(2)
-                                print(f"INFO: Topic bulundu (sayfa title): {title} (ID: {title_id})", file=sys.stderr)
+                                print(f"Başlık bulundu (sayfa başlığından): {title} (ID: {title_id})", file=sys.stderr)
             
             # Hala bulunamadıysa, genel link arama
             if not title:
@@ -805,7 +850,7 @@ class EksisozlukScraper:
                     if topic_match:
                         title = topic_match.group(1)
                         title_id = topic_match.group(2)
-                        print(f"INFO: Topic bulundu: {title} (ID: {title_id})", file=sys.stderr)
+                        print(f"Başlık bulundu: {title} (ID: {title_id})", file=sys.stderr)
             
             # Eğer topic linkinden bulunamazsa, meta tag veya diğer elementlerden dene
             if not title:
@@ -826,7 +871,7 @@ class EksisozlukScraper:
                         if topic_match:
                             title = topic_match.group(1)
                             title_id = topic_match.group(2)
-                            print(f"INFO: Topic bulundu (breadcrumb): {title} (ID: {title_id})", file=sys.stderr)
+                            print(f"Başlık bulundu (breadcrumb): {title} (ID: {title_id})", file=sys.stderr)
                             break
             
             # Hala bulunamazsa, topic sayfasına focusto ile yönlendir
@@ -849,20 +894,20 @@ class EksisozlukScraper:
                         if topic_match:
                             title = topic_match.group(1)
                             title_id = topic_match.group(2)
-                            print(f"INFO: Topic bulundu (sayfa linklerinden): {title} (ID: {title_id})", file=sys.stderr)
+                            print(f"Başlık bulundu (sayfa linklerinden): {title} (ID: {title_id})", file=sys.stderr)
                             break
             
             if not title or not title_id:
-                print(f"ERROR: Entry sayfasından topic bilgisi çıkarılamadı: {entry_url}", file=sys.stderr)
+                print(f"Hata: Entry sayfasından başlık bilgisi çıkarılamadı: {entry_url}", file=sys.stderr)
                 return entries
             
             # Topic sayfasına focusto parametresi ile git
             topic_url = f"{self.BASE_URL}/{title}--{title_id}?focusto={entry_id}"
-            print(f"INFO: Topic sayfasına yönlendiriliyor: {topic_url}", file=sys.stderr)
+            print(f"Başlık sayfasına yönlendiriliyor: {topic_url}", file=sys.stderr)
             
             response = self._make_request(topic_url)
             if not response:
-                print(f"ERROR: Topic sayfası yüklenemedi: {topic_url}", file=sys.stderr)
+                print(f"Hata: Başlık sayfası yüklenemedi: {topic_url}", file=sys.stderr)
                 return entries
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -875,7 +920,7 @@ class EksisozlukScraper:
             url_page_match = re.search(r'[?&]p=(\d+)', response_url)
             if url_page_match:
                 current_page = int(url_page_match.group(1))
-                print(f"INFO: Entry'nin bulunduğu sayfa (URL'den): {current_page}", file=sys.stderr)
+                print(f"Entry'nin bulunduğu sayfa (URL'den): {current_page}", file=sys.stderr)
             else:
                 # URL'de yoksa, pagination div'inden bul
                 pagination_div = soup.find('div', class_='pager')
@@ -884,7 +929,7 @@ class EksisozlukScraper:
                     if pagination_div.get('data-currentpage'):
                         try:
                             current_page = int(pagination_div.get('data-currentpage'))
-                            print(f"INFO: Entry'nin bulunduğu sayfa (data-currentpage): {current_page}", file=sys.stderr)
+                            print(f"Entry'nin bulunduğu sayfa (data-currentpage): {current_page}", file=sys.stderr)
                         except (ValueError, TypeError):
                             pass
                     
@@ -898,7 +943,7 @@ class EksisozlukScraper:
                         page_match = re.search(r'(\d+)\s*/\s*(\d+)', page_text)
                         if page_match:
                             current_page = int(page_match.group(1))
-                            print(f"INFO: Entry'nin bulunduğu sayfa (pager text): {current_page}", file=sys.stderr)
+                            print(f"Entry'nin bulunduğu sayfa (pager text): {current_page}", file=sys.stderr)
                         else:
                             # Alternatif: Pagination butonlarını kontrol et
                             page_buttons = pagination_div.find_all(['button', 'a', 'span', 'div'])
@@ -908,7 +953,7 @@ class EksisozlukScraper:
                                 btn_match = re.search(r'(\d+)\s*/\s*(\d+)', button_text)
                                 if btn_match:
                                     current_page = int(btn_match.group(1))
-                                    print(f"INFO: Entry'nin bulunduğu sayfa (button text): {current_page}", file=sys.stderr)
+                                    print(f"Entry'nin bulunduğu sayfa (button text): {current_page}", file=sys.stderr)
                                     break
                                 
                                 # Sadece sayı varsa ve aktif sınıfı varsa bu sayfa numarası
@@ -920,7 +965,7 @@ class EksisozlukScraper:
                                     page_num = int(button_text)
                                     if page_num > 100:  # Büyük sayılar sayfa numarası olabilir
                                         current_page = page_num
-                                        print(f"INFO: Entry'nin bulunduğu sayfa (active button, büyük sayı): {current_page}", file=sys.stderr)
+                                        print(f"Entry'nin bulunduğu sayfa (active button, büyük sayı): {current_page}", file=sys.stderr)
                                         break
                             
                             # Hala bulunamadıysa, aktif sayfa linkini bul
@@ -931,7 +976,7 @@ class EksisozlukScraper:
                                     page_match = re.search(r'p=(\d+)', href)
                                     if page_match:
                                         current_page = int(page_match.group(1))
-                                        print(f"INFO: Entry'nin bulunduğu sayfa (active link): {current_page}", file=sys.stderr)
+                                        print(f"Entry'nin bulunduğu sayfa (active link): {current_page}", file=sys.stderr)
                             
                             # Son çare: Pagination div'inde tüm sayıları bul ve "X / Y" formatını ara
                             # Tüm pagination içeriğini tekrar kontrol et
@@ -942,10 +987,10 @@ class EksisozlukScraper:
                                 html_page_match = re.search(r'(\d+)\s*/\s*(\d+)', pagination_html)
                                 if html_page_match:
                                     current_page = int(html_page_match.group(1))
-                                    print(f"INFO: Entry'nin bulunduğu sayfa (pagination HTML): {current_page}", file=sys.stderr)
+                                    print(f"Entry'nin bulunduğu sayfa (pagination HTML): {current_page}", file=sys.stderr)
                 else:
                     # Pagination div bulunamadı
-                    print(f"WARNING: Pagination div bulunamadı, sayfa numarası varsayılan olarak 1 kullanılıyor", file=sys.stderr)
+                    print(f"Uyarı: Sayfa numaralandırma div'i bulunamadı, sayfa numarası varsayılan olarak 1 kullanılıyor", file=sys.stderr)
             
             # Bu sayfadaki entry'leri bul ve entry'den itibaren al
             entry_elements = soup.find_all('li', {'data-id': True})
@@ -974,7 +1019,7 @@ class EksisozlukScraper:
                     if parsed_entry and parsed_entry.get('entry_id') == entry_id:
                         start_index = i
                         found_entry_on_page = True
-                        print(f"INFO: Entry bulundu, bu sayfadan itibaren alınıyor", file=sys.stderr)
+                        print(f"Entry bulundu, bu sayfadan itibaren alınıyor", file=sys.stderr)
                         break
                 
                 # Entry'den itibaren bu sayfadaki entry'leri ekle
@@ -991,7 +1036,7 @@ class EksisozlukScraper:
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
                                 entries = entries[:self.max_entries]
-                                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
                                 break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
@@ -1001,7 +1046,7 @@ class EksisozlukScraper:
                         found_start_entry = True  # Pagination loop'unu atlamak için
                 else:
                     # Entry bu sayfada bulunamadı, tüm sayfayı al (focusto sayfası olduğu için entry olmalı)
-                    print(f"WARNING: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
+                    print(f"Uyarı: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
                     for elem in entry_elements:
                         entry = self._parse_entry(elem)
                         if entry:
@@ -1014,7 +1059,7 @@ class EksisozlukScraper:
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
                                 entries = entries[:self.max_entries]
-                                print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
                                 break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
@@ -1030,19 +1075,19 @@ class EksisozlukScraper:
             # Entry bulundu, entry'ler toplandı veya sayfa numarası bulundu (devam edebiliriz)
             found_start_entry = found_entry_on_page or len(entries) > 0 or current_page > 0
             if not found_entry_on_page and len(entries) == 0:
-                print(f"WARNING: Entry sayfasında entry bulunamadı, ancak sayfa {current_page}'den devam edilecek", file=sys.stderr)
+                print(f"Uyarı: Entry sayfasında entry bulunamadı, ancak sayfa {current_page}'den devam edilecek", file=sys.stderr)
             
         else:
             # Eski format: /{title}--{id}
             path_parts = path.split('--')
             if len(path_parts) < 2:
-                print(f"ERROR: Geçersiz entry URL formatı: {entry_url}", file=sys.stderr)
+                print(f"Hata: Geçersiz entry URL formatı: {entry_url}", file=sys.stderr)
                 return entries
             
             title = path_parts[0]
             entry_id = path_parts[1]
             
-            print(f"Entry scrape ediliyor: {title} (entry #{entry_id})", file=sys.stderr)
+            print(f"Entry taranıyor: {title} (entry #{entry_id})", file=sys.stderr)
             
             # Önce belirtilen entry'yi bul
             page = 1
@@ -1129,7 +1174,7 @@ class EksisozlukScraper:
                         entry['title'] = title
                         entries.append(entry)
                         start_index = i
-                        print(f"INFO: Başlangıç entry bulundu (sayfa {page})", file=sys.stderr)
+                        print(f"Başlangıç entry bulundu (sayfa {page})", file=sys.stderr)
                         break
                 
                 if found_start_entry:
@@ -1147,7 +1192,7 @@ class EksisozlukScraper:
                                 # Max entries kontrolü
                                 if self.max_entries and len(entries) >= self.max_entries:
                                     entries = entries[:self.max_entries]
-                                    print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                                    print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
                                     break
                     # Entry'leri dosyaya yaz (incremental update)
                     if entries:
@@ -1164,13 +1209,13 @@ class EksisozlukScraper:
         if found_start_entry:
             # Max entries kontrolü - limit zaten aşıldıysa pagination'a girme
             if self.max_entries and len(entries) >= self.max_entries:
-                print(f"INFO: Maksimum entry sayısına zaten ulaşıldı ({self.max_entries}), pagination atlanıyor", file=sys.stderr)
+                print(f"Maksimum entry sayısına zaten ulaşıldı ({self.max_entries}), sayfa geçişi atlanıyor", file=sys.stderr)
             else:
                 # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
                 # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
                 # Şimdi sonraki sayfalardan devam et
                 page += 1
-                print(f"INFO: Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
+                print(f"Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
                 
                 while True:
                     if pagination_format:
@@ -1221,13 +1266,13 @@ class EksisozlukScraper:
                         break
                     
                     entries.extend(page_entries)
-                    print(f"INFO: Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (toplam: {len(entries)})", file=sys.stderr)
+                    print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
                     
                     # Max entries kontrolü
                     if self.max_entries and len(entries) >= self.max_entries:
                         # Limit aşıldı, fazla entry'leri kaldır
                         entries = entries[:self.max_entries]
-                        print(f"INFO: Maksimum entry sayısına ulaşıldı ({self.max_entries}), scraping durduruluyor", file=sys.stderr)
+                        print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
                         # Entry'leri dosyaya yaz (incremental update)
                         self._write_entries_to_file(entries)
                         break
@@ -1238,7 +1283,7 @@ class EksisozlukScraper:
                     # Son sayfa kontrolü
                     last_page = self._find_last_page_from_pagination(soup)
                     if last_page and page >= last_page:
-                        print(f"INFO: Son sayfa numarasına ulaşıldı ({last_page}), scraping sonlandırılıyor", file=sys.stderr)
+                        print(f"Son sayfa numarasına ulaşıldı ({last_page}), tarama sonlandırılıyor", file=sys.stderr)
                         break
                     
                     page += 1
@@ -1246,7 +1291,7 @@ class EksisozlukScraper:
         
         # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
         if self.fetch_referenced:
-            print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+            print(f"Referans edilen entry'ler kontrol ediliyor, biraz bekleyin...", file=sys.stderr)
             referenced_entries_map = self._fetch_referenced_entries(entries)
             if referenced_entries_map:
                 total_referenced = 0
@@ -1256,7 +1301,7 @@ class EksisozlukScraper:
                     if entry_id in referenced_entries_map:
                         entry['referenced_content'] = referenced_entries_map[entry_id]
                         total_referenced += len(referenced_entries_map[entry_id])
-                print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+                print(f"{total_referenced} referans edilen entry eklendi", file=sys.stderr)
                 # Entry'leri dosyaya yaz (güncellenmiş liste ile)
                 self._write_entries_to_file(entries)
         
@@ -1344,7 +1389,7 @@ def main():
     
     # Ctrl+C durumunda dosyayı kaydetmek veya terminale yazmak için signal handler
     def signal_handler(sig, frame):
-        print("\nINFO: Scraping durduruldu (Ctrl+C)...", file=sys.stderr)
+        print("\nTarama durduruldu (Ctrl+C)...", file=sys.stderr)
         # Scraper'ın mevcut entry'lerini al
         entries_to_output = scraper.current_entries if scraper.current_entries else []
         
@@ -1352,7 +1397,7 @@ def main():
             # Output dosyası varsa dosyaya yaz
             if entries_to_output:
                 scraper._write_entries_to_file(entries_to_output)
-                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
+                print(f"O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
         else:
             # Output dosyası yoksa terminale yazdır (tarihe göre sırala)
             if entries_to_output:
@@ -1369,9 +1414,9 @@ def main():
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print(output_json)
-                print(f"INFO: O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
+                print(f"O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
             else:
-                print("INFO: Henüz entry toplanmadı", file=sys.stderr)
+                print("Henüz entry toplanmadı", file=sys.stderr)
         
         sys.exit(0)
     
@@ -1415,7 +1460,7 @@ def main():
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print("\n" + output_json)
-                print(f"INFO: O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
+                print(f"O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
         
         sys.exit(0)
     
@@ -1438,7 +1483,7 @@ def main():
         print(output_json)
     else:
         # Output dosyası zaten incremental olarak yazıldı, sadece bilgi ver
-        print(f"INFO: Toplam {len(entries)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
+        print(f"Harika! Toplam {len(entries)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
 
 
 if __name__ == '__main__':
