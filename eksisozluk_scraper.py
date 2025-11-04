@@ -424,11 +424,12 @@ class EksisozlukScraper:
     
     def _write_entries_to_file(self, entries: List[Dict]):
         """Entry'leri JSON dosyasına yazar (incremental update)"""
+        # Mevcut entry'leri her zaman güncelle (Ctrl+C için gerekli)
+        self.current_entries = entries
+        
+        # Dosya yazma işlemi sadece output_file varsa yapılır
         if not self.output_file:
             return
-        
-        # Mevcut entry'leri güncelle
-        self.current_entries = entries
         
         try:
             # Output dosyası yapısını oluştur
@@ -1335,17 +1336,39 @@ def main():
         fetch_referenced=not args.no_bkz
     )
     
-    # Ctrl+C durumunda dosyayı kaydetmek için signal handler
+    # Ctrl+C durumunda dosyayı kaydetmek veya terminale yazmak için signal handler
     def signal_handler(sig, frame):
-        print("\nINFO: Scraping durduruldu (Ctrl+C), o ana kadar toplanan entry'ler kaydediliyor...", file=sys.stderr)
-        # Scraper'ın mevcut entry'lerini dosyaya yaz
-        if scraper.current_entries:
-            scraper._write_entries_to_file(scraper.current_entries)
+        print("\nINFO: Scraping durduruldu (Ctrl+C)...", file=sys.stderr)
+        # Scraper'ın mevcut entry'lerini al
+        entries_to_output = scraper.current_entries if scraper.current_entries else []
+        
+        if args.output:
+            # Output dosyası varsa dosyaya yaz
+            if entries_to_output:
+                scraper._write_entries_to_file(entries_to_output)
+                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
+        else:
+            # Output dosyası yoksa terminale yazdır
+            if entries_to_output:
+                output_data = {
+                    'scrape_info': {
+                        'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
+                        'total_entries': len(entries_to_output),
+                        'input': scraper.scrape_input or args.input,
+                        'time_filter': scraper.scrape_time_filter or time_filter_string
+                    },
+                    'entries': entries_to_output
+                }
+                output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
+                print(output_json)
+                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry terminale yazdırıldı", file=sys.stderr)
+            else:
+                print("INFO: Henüz entry toplanmadı", file=sys.stderr)
+        
         sys.exit(0)
     
-    # Signal handler'ı kaydet (sadece output dosyası belirtilmişse)
-    if args.output:
-        signal.signal(signal.SIGINT, signal_handler)
+    # Signal handler'ı kaydet (her zaman)
+    signal.signal(signal.SIGINT, signal_handler)
     
     # Entry'leri toplamak için list
     entries = []
@@ -1357,8 +1380,33 @@ def main():
         else:
             entries = scraper.scrape_title(args.input, time_filter, time_filter_string)
     except KeyboardInterrupt:
-        # Ctrl+C yakalandı, zaten incremental yazma yapıldığı için dosyada entry'ler var
-        print("\nINFO: Scraping durduruldu (Ctrl+C), o ana kadar toplanan entry'ler kaydedildi", file=sys.stderr)
+        # Ctrl+C yakalandı
+        # Signal handler zaten çalışacak, burada sadece temizlik yapabiliriz
+        # Ancak signal handler'da zaten işlem yapıldığı için buraya gelmeyecek
+        # Ama yine de güvenlik için burayı da güncelleyelim
+        entries_to_output = scraper.current_entries if scraper.current_entries else []
+        
+        if args.output:
+            # Output dosyası varsa dosyaya yaz
+            if entries_to_output:
+                scraper._write_entries_to_file(entries_to_output)
+                print(f"\nINFO: O ana kadar toplanan {len(entries_to_output)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
+        else:
+            # Output dosyası yoksa terminale yazdır
+            if entries_to_output:
+                output_data = {
+                    'scrape_info': {
+                        'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
+                        'total_entries': len(entries_to_output),
+                        'input': scraper.scrape_input or args.input,
+                        'time_filter': scraper.scrape_time_filter or time_filter_string
+                    },
+                    'entries': entries_to_output
+                }
+                output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
+                print("\n" + output_json)
+                print(f"INFO: O ana kadar toplanan {len(entries_to_output)} entry terminale yazdırıldı", file=sys.stderr)
+        
         sys.exit(0)
     
     # Çıktıyı hazırla (output dosyası belirtilmemişse stdout'a yaz)
