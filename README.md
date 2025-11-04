@@ -16,6 +16,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 - ✅ Rate limiting
 - ✅ Hata durumunda otomatik retry mekanizması
 - ✅ Debian paket desteği
+- ✅ Arch Linux (AUR) paket desteği
 
 ## Kurulum
 
@@ -35,7 +36,25 @@ Kurulumdan sonra `eksisozluk-scraper` komutu sistem genelinde kullanılabilir ol
 
 **Not:** Paket, bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
 
-### Yöntem 2: Python Script Olarak Çalıştırma
+### Yöntem 2: Arch Linux (AUR)
+
+Arch Linux kullanıcıları için AUR paketi mevcuttur:
+
+```bash
+# AUR helper ile (örnek: yay)
+yay -S eksisozluk-scraper
+
+# veya manuel olarak
+git clone https://aur.archlinux.org/eksisozluk-scraper.git
+cd eksisozluk-scraper
+makepkg -si
+```
+
+Kurulumdan sonra `eksisozluk-scraper` komutu sistem genelinde kullanılabilir olacaktır.
+
+**Not:** Paket, bash ve fish completion desteğini otomatik olarak yükler. Yeni bir terminal açtığınızda tab completion aktif olacaktır.
+
+### Yöntem 3: Python Script Olarak Çalıştırma
 
 Python scriptini doğrudan çalıştırabilirsiniz:
 

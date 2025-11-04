@@ -38,6 +38,14 @@ debian/*.log
 ../eksisozluk-scraper_*.changes
 eksisozluk-scraper_*.deb
 
+# Arch Linux (AUR) build
+*.pkg.tar.zst
+*.pkg.tar.xz
+pkg/
+src/
+aur-package/
+eksisozluk-scraper-*.tar.gz
+
 # IDE
 .vscode/
 .idea/
