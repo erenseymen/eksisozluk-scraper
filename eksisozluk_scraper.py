@@ -11,7 +11,6 @@ import re
 import time
 import sys
 import signal
-import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from urllib.parse import urlparse, parse_qs
