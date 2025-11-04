@@ -2,6 +2,8 @@
 
 Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda: JSON (varsayılan), CSV ve Markdown.
 
+Cursor (yapay zeka) ile yazılmıştır.
+
 ## Özellikler
 
 - ✅ Terminal tabanlı CLI arayüzü
