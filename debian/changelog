@@ -3,7 +3,7 @@ eksisozluk-scraper (1.1.0-1) unstable; urgency=medium
   * Added Fish shell tab completion support
   * Updated documentation with Fish completion instructions
 
- -- Erens <erens@example.com>  Tue, 04 Nov 2025 07:45:00 +0300
+ -- Eren Seymen  Tue, 04 Nov 2025 07:45:00 +0300
 
 eksisozluk-scraper (1.0.0-1) unstable; urgency=medium
 
@@ -11,5 +11,5 @@ eksisozluk-scraper (1.0.0-1) unstable; urgency=medium
   * Added tab completion support
   * Added Debian packaging
 
- -- Erens <erens@example.com>  Mon, 01 Jan 2024 00:00:00 +0000
+ -- Eren Seymen  Mon, 01 Jan 2024 00:00:00 +0000
 

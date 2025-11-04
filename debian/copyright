@@ -1,9 +1,9 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: eksisozluk-scraper
-Source: https://github.com/erens/ekşi-sözlük-scraper
+Source: https://github.com/erenseymen/eksisozluk-scraper
 
 Files: *
-Copyright: 2024 Erens
+Copyright: 2025 Eren Seymen
 License: MIT
 
 License: MIT

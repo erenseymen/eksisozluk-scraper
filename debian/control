@@ -1,10 +1,10 @@
 Source: eksisozluk-scraper
 Section: utils
 Priority: optional
-Maintainer: Erens <erens@example.com>
+Maintainer: Eren Seymen
 Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
 Standards-Version: 4.6.0
-Homepage: https://github.com/erens/ekşi-sözlük-scraper
+Homepage: https://github.com/erenseymen/eksisozluk-scraper
 
 Package: eksisozluk-scraper
 Architecture: all
