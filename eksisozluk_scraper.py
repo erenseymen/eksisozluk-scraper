@@ -327,12 +327,12 @@ class EksisozlukScraper:
         except Exception as e:
             print(f"WARNING: Entry'ler dosyaya yazılamadı: {e}", file=sys.stderr)
     
-    def scrape_title(self, title: str, time_filter: Optional[timedelta] = None) -> List[Dict]:
+    def scrape_title(self, title: str, time_filter: Optional[timedelta] = None, time_filter_string: Optional[str] = None) -> List[Dict]:
         """Bir başlıktaki tüm entry'leri scrape eder"""
         # Scrape bilgilerini kaydet
         self.scrape_start_time = datetime.now()
         self.scrape_input = title
-        self.scrape_time_filter = f"{time_filter.days} days" if time_filter else None
+        self.scrape_time_filter = time_filter_string if time_filter_string else (f"{time_filter.days} days" if time_filter else None)
         
         entries = []
         page = 1
@@ -500,7 +500,8 @@ class EksisozlukScraper:
             if time_filter and all_entries_too_old:
                 if entry_elements:
                     # Sayfada entry var ama hepsi çok eski
-                    print(f"INFO: Zaman filtresi nedeniyle scraping durduruldu (sayfa {page}'deki tüm entry'ler belirtilen süreyi ({time_filter.days} gün) aştı)", file=sys.stderr)
+                    filter_display = self.scrape_time_filter or f"{time_filter.days} gün"
+                    print(f"INFO: Zaman filtresi nedeniyle scraping durduruldu (sayfa {page}'deki tüm entry'ler belirtilen süreyi ({filter_display}) aştı)", file=sys.stderr)
                     break
                 else:
                     # Sayfada entry yok, bir sonraki sayfaya geç
@@ -1046,7 +1047,13 @@ def main():
   python eksisozluk_scraper.py "python" --days 1
 
   # Son 1 haftalık entry'leri scrape et:
-  python eksisozluk_scraper.py "python" --days 7
+  python eksisozluk_scraper.py "python" --weeks 1
+
+  # Son 1 aylık entry'leri scrape et:
+  python eksisozluk_scraper.py "python" --months 1
+
+  # Son 1 yıllık entry'leri scrape et:
+  python eksisozluk_scraper.py "python" --years 1
 
   # Maksimum 100 entry scrape et:
   python eksisozluk_scraper.py "python" --max-entries 100
@@ -1065,6 +1072,8 @@ def main():
     parser.add_argument('input', help='Başlık adı veya entry URL\'si')
     parser.add_argument('--days', type=int, help='Son N günlük entry\'leri scrape et')
     parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
+    parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
+    parser.add_argument('--years', type=int, help='Son N yıllık entry\'leri scrape et')
     parser.add_argument('--delay', type=float, default=1.5, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 1.5)')
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
     parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
@@ -1075,10 +1084,19 @@ def main():
     
     # Zaman filtresi hesapla
     time_filter = None
+    time_filter_string = None
     if args.days:
         time_filter = timedelta(days=args.days)
+        time_filter_string = f"{args.days} days"
     elif args.weeks:
         time_filter = timedelta(weeks=args.weeks)
+        time_filter_string = f"{args.weeks} weeks"
+    elif args.months:
+        time_filter = timedelta(days=args.months * 30)  # 1 ay = 30 gün
+        time_filter_string = f"{args.months} months"
+    elif args.years:
+        time_filter = timedelta(days=args.years * 365)  # 1 yıl = 365 gün
+        time_filter_string = f"{args.years} years"
     
     # Scraper oluştur
     scraper = EksisozlukScraper(
@@ -1109,7 +1127,7 @@ def main():
         if args.input.startswith('http://') or args.input.startswith('https://'):
             entries = scraper.scrape_entry_and_following(args.input)
         else:
-            entries = scraper.scrape_title(args.input, time_filter)
+            entries = scraper.scrape_title(args.input, time_filter, time_filter_string)
     except KeyboardInterrupt:
         # Ctrl+C yakalandı, zaten incremental yazma yapıldığı için dosyada entry'ler var
         print("\nINFO: Scraping durduruldu (Ctrl+C), o ana kadar toplanan entry'ler kaydedildi", file=sys.stderr)
@@ -1122,7 +1140,7 @@ def main():
                 'timestamp': datetime.now().isoformat(),
                 'total_entries': len(entries),
                 'input': args.input,
-                'time_filter': f"{args.days} days" if args.days else (f"{args.weeks} weeks" if args.weeks else None)
+                'time_filter': time_filter_string
             },
             'entries': entries
         }
