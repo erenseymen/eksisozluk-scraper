@@ -707,6 +707,14 @@ class EksisozlukScraper:
         for entry in entries:
             entry.pop('referenced_entry_ids', None)
         
+        # Eğer son sayfadan başlanarak alındıysa ve output dosyası belirtilmişse, entry'leri tarihe göre sırala
+        if reverse_order and self.output_file:
+            print(f"INFO: Entry'ler tarihe göre sıralanıyor...", file=sys.stderr)
+            entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
+            # Sıralanmış entry'leri dosyaya yaz
+            self._write_entries_to_file(entries)
+            print(f"INFO: Entry'ler tarihe göre sıralandı ve dosyaya yazıldı", file=sys.stderr)
+        
         return entries
     
     def scrape_entry_and_following(self, entry_url: str) -> List[Dict]:
