@@ -105,49 +105,6 @@ eksisozluk-scraper "başlık adı" --retry-delay 10.0
 eksisozluk-scraper "başlık adı" --no-bkz
 ```
 
-## Çıktı Formatları
-
-Scraper, üç farklı çıktı formatını destekler. Format, dosya uzantısından otomatik olarak tespit edilir:
-
-- **JSON** (varsayılan): `.json` uzantılı dosyalar veya uzantı belirtilmemişse
-- **CSV**: `.csv` uzantılı dosyalar
-- **Markdown**: `.md` veya `.markdown` uzantılı dosyalar
-
-### JSON Formatı
-
-JSON formatı (varsayılan), AI tarafından kolayca işlenebilecek yapıdadır:
-
-```json
-{
-  "scrape_info": {
-    "timestamp": "2024-01-12T15:30:00",
-    "total_entries": 42,
-    "input": "python",
-    "time_filter": "1 days"
-  },
-  "entries": [
-    {
-      "entry_id": "123456",
-      "entry_url": "https://eksisozluk.com/python--123456",
-      "title": "python",
-      "date": "12.01.2024 15:30",
-      "author": "kullanıcı_adı",
-      "content": "Entry içeriği...",
-      "favorite_count": 5,
-      "entry_number": "1"
-    }
-  ]
-}
-```
-
-### CSV Formatı
-
-CSV formatı, veri analizi ve Excel gibi programlarda kullanım için uygundur. Sadece temel alanları içerir: `entry_id`, `title`, `date`, `author`, `content`.
-
-### Markdown Formatı
-
-Markdown formatı, okunabilir ve yapılandırılmış bir çıktı üretir. Her entry için başlık, tarih, yazar ve içerik bilgileri ayrı ayrı gösterilir.
-
 ## Notlar
 
 - Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
