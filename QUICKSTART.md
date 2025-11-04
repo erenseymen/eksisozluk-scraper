@@ -16,13 +16,13 @@ sudo apt-get install -f  # Fix any missing dependencies
 ### Option 2: Python Package (Development)
 
 ```bash
-# Install dependencies
-pip3 install -r requirements.txt
-
-# Install package
+# Install package (includes dependencies)
 pip3 install -e .
 
-# Or use directly
+# Now you can use the eksisozluk-scraper command
+eksisozluk-scraper "python"
+
+# Alternatively, for development, you can run directly:
 python3 eksisozluk_scraper.py "python"
 ```
 

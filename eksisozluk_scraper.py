@@ -1459,36 +1459,36 @@ def main():
         epilog="""
 Örnekler:
   # Başlıktaki tüm entry'leri scrape et:
-  python eksisozluk_scraper.py "python"
+  eksisozluk-scraper "python"
 
   # Son 1 günlük entry'leri scrape et:
-  python eksisozluk_scraper.py "python" --days 1
+  eksisozluk-scraper "python" --days 1
 
   # Son 1 haftalık entry'leri scrape et:
-  python eksisozluk_scraper.py "python" --weeks 1
+  eksisozluk-scraper "python" --weeks 1
 
   # Son 1 aylık entry'leri scrape et:
-  python eksisozluk_scraper.py "python" --months 1
+  eksisozluk-scraper "python" --months 1
 
   # Son 1 yıllık entry'leri scrape et:
-  python eksisozluk_scraper.py "python" --years 1
+  eksisozluk-scraper "python" --years 1
 
   # Maksimum 100 entry scrape et:
-  python eksisozluk_scraper.py "python" --max-entries 100
+  eksisozluk-scraper "python" --max-entries 100
 
   # Son 7 günlük, maksimum 50 entry scrape et:
-  python eksisozluk_scraper.py "python" --days 7 --max-entries 50
+  eksisozluk-scraper "python" --days 7 --max-entries 50
 
   # Belirli bir entry'den itibaren scrape et:
-  python eksisozluk_scraper.py "https://eksisozluk.com/python--123456"
+  eksisozluk-scraper "https://eksisozluk.com/python--123456"
 
   # Farklı çıktı formatları:
-  python eksisozluk_scraper.py "python" --output sonuclar.json  # JSON formatı
-  python eksisozluk_scraper.py "python" --output sonuclar.csv    # CSV formatı
-  python eksisozluk_scraper.py "python" --output sonuclar.md     # Markdown formatı
+  eksisozluk-scraper "python" --output sonuclar.json  # JSON formatı
+  eksisozluk-scraper "python" --output sonuclar.csv    # CSV formatı
+  eksisozluk-scraper "python" --output sonuclar.md     # Markdown formatı
 
   # Özel parametreler:
-  python eksisozluk_scraper.py "python" --delay 2.0 --max-retries 5
+  eksisozluk-scraper "python" --delay 2.0 --max-retries 5
         """
     )
     

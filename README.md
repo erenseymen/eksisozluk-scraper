@@ -4,6 +4,8 @@ Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda
 
 ## Kurulum
 
+### Python Paketi Olarak Kurulum
+
 ```bash
 # Virtual environment oluştur (önerilir)
 python3 -m venv venv
@@ -11,8 +13,20 @@ source venv/bin/activate  # Linux/Mac
 # veya
 venv\Scripts\activate  # Windows
 
+# Paketi kur
+pip install -e .
+
+# Artık eksisozluk-scraper komutunu kullanabilirsiniz
+```
+
+Alternatif olarak, bağımlılıkları manuel kurup doğrudan Python scriptini çalıştırabilirsiniz:
+
+```bash
 # Bağımlılıkları kur
 pip install -r requirements.txt
+
+# Doğrudan çalıştır (geliştirme için)
+python3 eksisozluk_scraper.py "başlık-adı"
 ```
 
 ## Kullanım
@@ -20,26 +34,26 @@ pip install -r requirements.txt
 ### Başlıktaki Tüm Entry'leri Scrape Etme
 
 ```bash
-python eksisozluk_scraper.py "başlık-adı"
+eksisozluk-scraper "başlık-adı"
 ```
 
 ### Zaman Filtreleme
 
 ```bash
 # Son 1 günlük entry'ler
-python eksisozluk_scraper.py "başlık-adı" --days 1
+eksisozluk-scraper "başlık-adı" --days 1
 
 # Son 1 haftalık entry'ler
-python eksisozluk_scraper.py "başlık-adı" --days 7
+eksisozluk-scraper "başlık-adı" --days 7
 
 # Son 2 haftalık entry'ler
-python eksisozluk_scraper.py "başlık-adı" --weeks 2
+eksisozluk-scraper "başlık-adı" --weeks 2
 ```
 
 ### Belirli Entry'den İtibaren Scrape Etme
 
 ```bash
-python eksisozluk_scraper.py "https://eksisozluk.com/başlık-adı--entry-id"
+eksisozluk-scraper "https://eksisozluk.com/başlık-adı--entry-id"
 ```
 
 ### Çıktıyı Dosyaya Kaydetme
@@ -48,28 +62,28 @@ Scraper, çıktı formatını dosya uzantısından otomatik olarak tespit eder:
 
 ```bash
 # JSON formatı (varsayılan)
-python eksisozluk_scraper.py "başlık-adı" --output sonuclar.json
+eksisozluk-scraper "başlık-adı" --output sonuclar.json
 
 # CSV formatı
-python eksisozluk_scraper.py "başlık-adı" --output sonuclar.csv
+eksisozluk-scraper "başlık-adı" --output sonuclar.csv
 
 # Markdown formatı
-python eksisozluk_scraper.py "başlık-adı" --output sonuclar.md
+eksisozluk-scraper "başlık-adı" --output sonuclar.md
 # veya
-python eksisozluk_scraper.py "başlık-adı" --output sonuclar.markdown
+eksisozluk-scraper "başlık-adı" --output sonuclar.markdown
 ```
 
 ### Gelişmiş Parametreler
 
 ```bash
 # Request'ler arası bekleme süresi (varsayılan: 1.5 saniye)
-python eksisozluk_scraper.py "başlık-adı" --delay 2.0
+eksisozluk-scraper "başlık-adı" --delay 2.0
 
 # Maksimum retry sayısı (varsayılan: 3)
-python eksisozluk_scraper.py "başlık-adı" --max-retries 5
+eksisozluk-scraper "başlık-adı" --max-retries 5
 
 # Retry arası bekleme (varsayılan: 5.0 saniye)
-python eksisozluk_scraper.py "başlık-adı" --retry-delay 10.0
+eksisozluk-scraper "başlık-adı" --retry-delay 10.0
 ```
 
 ## Çıktı Formatları
