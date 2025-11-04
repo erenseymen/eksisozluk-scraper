@@ -113,7 +113,7 @@ CSV formatı, veri analizi ve Excel gibi programlarda kullanım için uygundur. 
 
 ### Markdown Formatı
 
-Markdown formatı, okunabilir tablo formatında çıktı üretir. Scrape bilgileri ve entry'ler tablo halinde sunulur.
+Markdown formatı, okunabilir ve yapılandırılmış bir çıktı üretir. Her entry için başlık, tarih, yazar ve içerik bilgileri ayrı ayrı gösterilir.
 
 ## Özellikler
 

@@ -472,17 +472,22 @@ class EksisozlukScraper:
             f.write(f"# Scrape Info: {json.dumps(scrape_info, ensure_ascii=False)}\n")
             
             # CSV başlıkları
-            headers = ['entry_id', 'title', 'date', 'author', 'content']
+            headers = ['entry_id', 'title', 'date', 'author', 'content', 'referenced_content']
             writer.writerow(headers)
             
             # Entry'leri yaz
             for entry in entries:
+                # referenced_content'i JSON string olarak serialize et
+                referenced_content = entry.get('referenced_content', [])
+                referenced_content_str = json.dumps(referenced_content, ensure_ascii=False) if referenced_content else ''
+                
                 row = [
                     entry.get('entry_id', ''),
                     entry.get('title', ''),
                     entry.get('date', ''),
                     entry.get('author', ''),
-                    entry.get('content', '')
+                    entry.get('content', ''),
+                    referenced_content_str
                 ]
                 writer.writerow(row)
     
@@ -505,32 +510,64 @@ class EksisozlukScraper:
                 f.write(f"- **Time Filter**: {scrape_info['time_filter']}\n")
             f.write("\n")
             
-            # Markdown tablo başlıkları
-            f.write("## Entries\n\n")
-            f.write("| Entry ID | Title | Date | Author | Content |\n")
-            f.write("|----------|-------|------|--------|---------|\n")
-            
             # Entry'leri yaz
-            for entry in entries:
-                # Markdown tablo içeriğinde pipe karakterlerini escape et
-                def escape_markdown(text):
-                    if text is None:
-                        return ''
-                    text = str(text)
-                    # Pipe karakterlerini escape et
-                    text = text.replace('|', '\\|')
-                    # Satır sonlarını <br> ile değiştir (tablo için)
-                    text = text.replace('\n', '<br>')
-                    return text
+            f.write("## Entries\n\n")
+            for i, entry in enumerate(entries, 1):
+                entry_id = entry.get('entry_id', '')
+                title = entry.get('title', '')
+                date = entry.get('date', '')
+                author = entry.get('author', '')
+                content = entry.get('content', '')
+                referenced_content = entry.get('referenced_content', [])
                 
-                row = [
-                    escape_markdown(entry.get('entry_id', '')),
-                    escape_markdown(entry.get('title', '')),
-                    escape_markdown(entry.get('date', '')),
-                    escape_markdown(entry.get('author', '')),
-                    escape_markdown(entry.get('content', ''))
-                ]
-                f.write(f"| {' | '.join(row)} |\n")
+                # Entry başlığı
+                f.write(f"### Entry {i}")
+                if entry_id:
+                    f.write(f" (ID: {entry_id})")
+                f.write("\n\n")
+                
+                # Entry bilgileri
+                if title:
+                    f.write(f"**Title**: {title}\n\n")
+                if date:
+                    f.write(f"**Date**: {date}\n\n")
+                if author:
+                    f.write(f"**Author**: {author}\n\n")
+                
+                # Entry içeriği
+                if content:
+                    f.write("**Content**:\n\n")
+                    # İçeriği code block veya normal paragraf olarak yaz
+                    f.write(f"{content}\n\n")
+                
+                # Referenced content (bkz linkleri)
+                if referenced_content:
+                    f.write("**Referenced Content**:\n\n")
+                    for ref_idx, ref_entry in enumerate(referenced_content, 1):
+                        ref_entry_id = ref_entry.get('entry_id', '')
+                        ref_title = ref_entry.get('title', '')
+                        ref_date = ref_entry.get('date', '')
+                        ref_author = ref_entry.get('author', '')
+                        ref_content = ref_entry.get('content', '')
+                        
+                        f.write(f"#### Referenced Entry {ref_idx}")
+                        if ref_entry_id:
+                            f.write(f" (ID: {ref_entry_id})")
+                        f.write("\n\n")
+                        
+                        if ref_title:
+                            f.write(f"- **Title**: {ref_title}\n")
+                        if ref_date:
+                            f.write(f"- **Date**: {ref_date}\n")
+                        if ref_author:
+                            f.write(f"- **Author**: {ref_author}\n")
+                        if ref_content:
+                            f.write(f"- **Content**: {ref_content}\n")
+                        f.write("\n")
+                
+                # Entry'ler arası ayırıcı
+                if i < len(entries):
+                    f.write("---\n\n")
     
     def _write_entries_to_file(self, entries: List[Dict]):
         """Entry'leri dosyaya yazar, format dosya uzantısına göre otomatik tespit edilir"""
