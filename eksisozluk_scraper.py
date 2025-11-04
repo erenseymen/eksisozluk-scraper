@@ -24,7 +24,7 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None, max_entries: Optional[int] = None):
+    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None, max_entries: Optional[int] = None, fetch_referenced: bool = True):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
@@ -32,12 +32,14 @@ class EksisozlukScraper:
             retry_delay: Hata aldığında tekrar denemeden önce bekleme süresi (saniye)
             output_file: Entry'lerin yazılacağı JSON dosyası yolu (opsiyonel)
             max_entries: Maksimum entry sayısı (opsiyonel, None ise sınırsız)
+            fetch_referenced: Referans edilen entry'leri fetch et (varsayılan: True)
         """
         self.delay = delay
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.output_file = output_file
         self.max_entries = max_entries
+        self.fetch_referenced = fetch_referenced
         self.scrape_start_time = None
         self.scrape_input = None
         self.scrape_time_filter = None
@@ -686,25 +688,24 @@ class EksisozlukScraper:
             time.sleep(self.delay)
         
         # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
-        print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
-        referenced_entries_map = self._fetch_referenced_entries(entries)
-        if referenced_entries_map:
-            total_referenced = 0
-            # Her entry'yi kontrol et ve referans edilen entry'leri ekle
-            for entry in entries:
-                entry_id = entry.get('entry_id')
-                if entry_id in referenced_entries_map:
-                    entry['referenced_content'] = referenced_entries_map[entry_id]
-                    total_referenced += len(referenced_entries_map[entry_id])
-            print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+        if self.fetch_referenced:
+            print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+            referenced_entries_map = self._fetch_referenced_entries(entries)
+            if referenced_entries_map:
+                total_referenced = 0
+                # Her entry'yi kontrol et ve referans edilen entry'leri ekle
+                for entry in entries:
+                    entry_id = entry.get('entry_id')
+                    if entry_id in referenced_entries_map:
+                        entry['referenced_content'] = referenced_entries_map[entry_id]
+                        total_referenced += len(referenced_entries_map[entry_id])
+                print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+                # Entry'leri dosyaya yaz (güncellenmiş liste ile)
+                self._write_entries_to_file(entries)
         
         # referenced_entry_ids alanını tüm entry'lerden kaldır (sadece iç kullanım içindi)
         for entry in entries:
             entry.pop('referenced_entry_ids', None)
-        
-        # Entry'leri dosyaya yaz (güncellenmiş liste ile)
-        if referenced_entries_map:
-            self._write_entries_to_file(entries)
         
         return entries
     
@@ -1229,25 +1230,24 @@ class EksisozlukScraper:
                     time.sleep(self.delay)
         
         # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
-        print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
-        referenced_entries_map = self._fetch_referenced_entries(entries)
-        if referenced_entries_map:
-            total_referenced = 0
-            # Her entry'yi kontrol et ve referans edilen entry'leri ekle
-            for entry in entries:
-                entry_id = entry.get('entry_id')
-                if entry_id in referenced_entries_map:
-                    entry['referenced_content'] = referenced_entries_map[entry_id]
-                    total_referenced += len(referenced_entries_map[entry_id])
-            print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+        if self.fetch_referenced:
+            print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+            referenced_entries_map = self._fetch_referenced_entries(entries)
+            if referenced_entries_map:
+                total_referenced = 0
+                # Her entry'yi kontrol et ve referans edilen entry'leri ekle
+                for entry in entries:
+                    entry_id = entry.get('entry_id')
+                    if entry_id in referenced_entries_map:
+                        entry['referenced_content'] = referenced_entries_map[entry_id]
+                        total_referenced += len(referenced_entries_map[entry_id])
+                print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+                # Entry'leri dosyaya yaz (güncellenmiş liste ile)
+                self._write_entries_to_file(entries)
         
         # referenced_entry_ids alanını tüm entry'lerden kaldır (sadece iç kullanım içindi)
         for entry in entries:
             entry.pop('referenced_entry_ids', None)
-        
-        # Entry'leri dosyaya yaz (güncellenmiş liste ile)
-        if referenced_entries_map:
-            self._write_entries_to_file(entries)
         
         return entries
 
@@ -1297,6 +1297,7 @@ def main():
     parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası (varsayılan: stdout)')
+    parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
     
     args = parser.parse_args()
     
@@ -1322,7 +1323,8 @@ def main():
         max_retries=args.max_retries,
         retry_delay=args.retry_delay,
         output_file=args.output,
-        max_entries=args.max_entries
+        max_entries=args.max_entries,
+        fetch_referenced=not args.no_bkz
     )
     
     # Ctrl+C durumunda dosyayı kaydetmek için signal handler
