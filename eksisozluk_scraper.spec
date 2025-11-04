@@ -1,10 +1,4 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec file optimized to reduce antivirus false positives
-# 
-# Additional measures to reduce false positives:
-# - UPX compression disabled
-# - Version info included (makes executable more trustworthy)
-# - Clean build with no obfuscation
 
 block_cipher = None
 
@@ -48,7 +42,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # Disabled: UPX compression triggers false positives
+    upx=False,  # Disabled: UPX compression can trigger false positives in antivirus software
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
@@ -58,6 +52,5 @@ exe = EXE(
     codesign_identity=None,  # Set to your code signing certificate if available
     entitlements_file=None,
     icon=None,
-    version='version_info.txt',  # Version info reduces false positives
 )
 
