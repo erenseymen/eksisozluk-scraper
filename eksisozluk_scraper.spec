@@ -42,14 +42,14 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # Disabled: UPX compression can trigger false positives in antivirus software
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,  # Set to your code signing certificate if available
+    codesign_identity=None,
     entitlements_file=None,
     icon=None,
 )
