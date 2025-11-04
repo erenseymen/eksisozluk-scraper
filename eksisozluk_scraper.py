@@ -374,25 +374,56 @@ class EksisozlukScraper:
             # İlk sayfada topic ID ve pagination formatını çıkar
             if page == 1 and not title_id:
                 response_url = response.url
-                # URL formatı: https://eksisozluk.com/gauge--93891 veya https://eksisozluk.com/gauge--93891?p=1
-                # Title'ı escape et
-                escaped_title = re.escape(title)
-                title_id_match = re.search(rf'/{escaped_title}--(\d+)', response_url)
-                if title_id_match:
-                    title_id = title_id_match.group(1)
-                    print(f"INFO: Topic ID bulundu: {title_id}", file=sys.stderr)
+                # URL formatı: https://eksisozluk.com/kis-gunesi--46338 veya https://eksisozluk.com/kis-gunesi--46338?p=1
+                # URL'den güncellenmiş slug'ı ve topic ID'yi çıkar
+                # Önce query string'i temizle
+                parsed_response_url = urlparse(response_url)
+                clean_path = parsed_response_url.path.strip('/')
+                normalized_slug = None  # Güncellenmiş slug'ı saklamak için
+                
+                # Path formatı: kis-gunesi--46338
+                if '--' in clean_path:
+                    parts = clean_path.split('--')
+                    if len(parts) == 2:
+                        normalized_slug = parts[0]  # kis-gunesi
+                        title_id = parts[1]  # 46338
+                        print(f"INFO: Topic ID bulundu: {title_id}", file=sys.stderr)
+                        print(f"INFO: Normalize edilmiş slug bulundu: {normalized_slug}", file=sys.stderr)
+                    else:
+                        # Alternatif: URL'de -- ile başlayan sayı ara
+                        alt_match = re.search(r'--(\d+)', response_url)
+                        if alt_match:
+                            title_id = alt_match.group(1)
+                            # Slug'ı manuel olarak çıkar
+                            slug_match = re.search(r'([^/]+)--\d+', clean_path)
+                            if slug_match:
+                                normalized_slug = slug_match.group(1)
+                            else:
+                                normalized_slug = title  # Fallback olarak orijinal title kullan
+                            print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
                 else:
                     # Alternatif: URL'de -- ile başlayan sayı ara
                     alt_match = re.search(r'--(\d+)', response_url)
                     if alt_match:
                         title_id = alt_match.group(1)
+                        # Slug'ı path'ten çıkar
+                        slug_match = re.search(r'/([^/]+)--\d+', parsed_response_url.path)
+                        if slug_match:
+                            normalized_slug = slug_match.group(1)
+                        else:
+                            normalized_slug = title  # Fallback olarak orijinal title kullan
                         print(f"INFO: Topic ID bulundu (alternatif yöntem): {title_id}", file=sys.stderr)
                 
-                # Basit format: /slug--id?p=X kullan (daha güvenilir)
+                # Basit format: /normalized-slug--id?p=X kullan (güncellenmiş URL'den alınan slug ile)
                 # Pagination linklerindeki /basliklar/gundem formatı yanlış sonuçlara yol açıyor
                 if title_id:
-                    pagination_format = f"/{title}--{title_id}?p={{page}}"
-                    print(f"INFO: Pagination formatı bulundu (basit format): {pagination_format}", file=sys.stderr)
+                    if normalized_slug:
+                        pagination_format = f"/{normalized_slug}--{title_id}?p={{page}}"
+                        print(f"INFO: Pagination formatı bulundu (güncellenmiş URL'den): {pagination_format}", file=sys.stderr)
+                    else:
+                        # Fallback: Orijinal title kullan (normalized_slug bulunamadıysa)
+                        pagination_format = f"/{title}--{title_id}?p={{page}}"
+                        print(f"INFO: Pagination formatı bulundu (fallback, orijinal title ile): {pagination_format}", file=sys.stderr)
                 else:
                     # Son çare: pagination linklerinden formatı çıkar
                     pagination_link = soup.find('a', href=re.compile(r'p=\d+'))
