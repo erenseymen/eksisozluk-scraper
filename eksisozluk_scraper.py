@@ -42,6 +42,7 @@ class EksisozlukScraper:
         self.scrape_input = None
         self.scrape_time_filter = None
         self.current_entries = []  # Mevcut entry'leri tutmak için
+        self.scraped_entry_ids = set()  # Scrape edilmiş entry ID'lerini tutmak için (duplikasyon önleme)
         # cloudscraper Cloudflare korumasını bypass eder
         self.session = cloudscraper.create_scraper(
             browser={
@@ -137,6 +138,31 @@ class EksisozlukScraper:
                            entry_element.find('div', {'class': 'entry-content'}))
             
             if content_elem:
+                # Referans edilen entry ID'lerini bul (bkz linklerinden)
+                referenced_entry_ids = []
+                # Entry linklerini bul - href'te /entry/ veya entry-- olan linkler
+                entry_links = content_elem.find_all('a', href=re.compile(r'(?:/entry/|entry--)\d+'))
+                for link in entry_links:
+                    href = link.get('href', '')
+                    # /entry/123456 formatı
+                    entry_match = re.search(r'/entry/(\d+)', href)
+                    if entry_match:
+                        ref_entry_id = entry_match.group(1)
+                        if ref_entry_id != entry_id:  # Kendi kendine referans değilse
+                            referenced_entry_ids.append(ref_entry_id)
+                    else:
+                        # entry--123456 formatı
+                        entry_match = re.search(r'entry--(\d+)', href)
+                        if entry_match:
+                            ref_entry_id = entry_match.group(1)
+                            if ref_entry_id != entry_id:  # Kendi kendine referans değilse
+                                referenced_entry_ids.append(ref_entry_id)
+                
+                # Tekrarları kaldır
+                referenced_entry_ids = list(set(referenced_entry_ids))
+                if referenced_entry_ids:
+                    entry_data['referenced_entry_ids'] = referenced_entry_ids  # İç kullanım için - sonra kaldırılacak
+                
                 # HTML tag'lerini temizle ama formatı koru
                 for br in content_elem.find_all('br'):
                     br.replace_with('\n')
@@ -261,6 +287,100 @@ class EksisozlukScraper:
         except Exception as e:
             print(f"WARNING: Son sayfa bulunamadı: {e}", file=sys.stderr)
             return None
+    
+    def _fetch_entry_by_id(self, entry_id: str) -> Optional[Dict]:
+        """Belirli bir entry ID'si ile entry'yi fetch eder"""
+        # Entry URL'i oluştur
+        entry_url = f"{self.BASE_URL}/entry/{entry_id}"
+        
+        response = self._make_request(entry_url)
+        if not response:
+            return None
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Entry'yi bul - entry sayfasında genellikle tek bir entry var
+        entry_elements = soup.find_all('li', {'data-id': entry_id})
+        
+        if not entry_elements:
+            entry_elements = soup.select(f'li[data-id="{entry_id}"]')
+        
+        if not entry_elements:
+            # Entry container'ından ara
+            entry_list = (soup.find('ul', id='entry-item-list') or 
+                        soup.find('ul', id='entry-list'))
+            if entry_list:
+                entry_elements = entry_list.find_all('li', {'data-id': entry_id})
+        
+        if entry_elements:
+            entry = self._parse_entry(entry_elements[0])
+            if entry:
+                # Topic bilgisini sayfadan çıkar
+                h1_title = soup.find('h1')
+                if h1_title:
+                    title_link = h1_title.find('a', href=True)
+                    if title_link and title_link.get('href'):
+                        topic_href = title_link['href']
+                        topic_match = re.search(r'/([^/]+)--(\d+)', topic_href)
+                        if topic_match:
+                            entry['title'] = topic_match.group(1)
+                
+                return entry
+        
+        return None
+    
+    def _fetch_referenced_entries(self, entries: List[Dict]) -> Dict[str, List[Dict]]:
+        """Entry'lerdeki referans edilen entry'leri fetch eder ve entry ID'ye göre gruplar
+        
+        Returns:
+            Dict mapping entry_id to list of referenced entries
+        """
+        referenced_entries_map = {}  # entry_id -> list of referenced entries
+        entries_to_fetch = {}  # ref_entry_id -> list of parent entry_ids that reference it
+        main_entries_dict = {e.get('entry_id'): e for e in entries if e.get('entry_id')}  # entry_id -> entry dict for quick lookup
+        
+        # Tüm referans edilen entry ID'lerini topla ve hangi entry'lerin referans verdiğini kaydet
+        for entry in entries:
+            entry_id = entry.get('entry_id')
+            if not entry_id:
+                continue
+                
+            ref_ids = entry.get('referenced_entry_ids', [])
+            for ref_id in ref_ids:
+                # Her referans için parent entry'yi kaydet
+                if entry_id not in referenced_entries_map:
+                    referenced_entries_map[entry_id] = []
+                
+                # Eğer referans edilen entry zaten main list'te varsa, onu kullan
+                if ref_id in main_entries_dict:
+                    # Main list'teki entry'nin bir kopyasını ekle
+                    referenced_entry_copy = main_entries_dict[ref_id].copy()
+                    referenced_entries_map[entry_id].append(referenced_entry_copy)
+                # Eğer daha önce scrape edilmediyse fetch et
+                elif ref_id not in self.scraped_entry_ids:
+                    if ref_id not in entries_to_fetch:
+                        entries_to_fetch[ref_id] = []
+                    entries_to_fetch[ref_id].append(entry_id)
+        
+        # Referans edilen entry'leri fetch et (sadece main list'te olmayanlar)
+        for ref_entry_id, parent_entry_ids in entries_to_fetch.items():
+            print(f"INFO: Referans edilen entry fetch ediliyor: {ref_entry_id}", file=sys.stderr)
+            referenced_entry = self._fetch_entry_by_id(ref_entry_id)
+            if referenced_entry:
+                # Entry ID'yi işaretle
+                self.scraped_entry_ids.add(ref_entry_id)
+                
+                # Her parent entry için bu referans edilen entry'yi ekle
+                for parent_entry_id in parent_entry_ids:
+                    if parent_entry_id not in referenced_entries_map:
+                        referenced_entries_map[parent_entry_id] = []
+                    # Referans edilen entry'nin bir kopyasını ekle
+                    referenced_entry_copy = referenced_entry.copy()
+                    referenced_entries_map[parent_entry_id].append(referenced_entry_copy)
+                
+                time.sleep(self.delay)  # Rate limiting
+        
+        return referenced_entries_map
     
     def _find_last_page_from_pagination(self, soup: BeautifulSoup) -> Optional[int]:
         """İlk sayfadaki pagination'dan son sayfa numarasını bulur"""
@@ -490,6 +610,11 @@ class EksisozlukScraper:
             for elem in entry_elements:
                 entry = self._parse_entry(elem)
                 if entry:
+                    entry_id = entry.get('entry_id')
+                    # Entry ID'yi işaretle (duplikasyon önleme)
+                    if entry_id:
+                        self.scraped_entry_ids.add(entry_id)
+                    
                     # Zaman filtresi kontrolü
                     if time_filter:
                         entry_dt = self._parse_datetime(entry.get('date', ''))
@@ -559,6 +684,27 @@ class EksisozlukScraper:
                 page += 1
             
             time.sleep(self.delay)
+        
+        # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
+        print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+        referenced_entries_map = self._fetch_referenced_entries(entries)
+        if referenced_entries_map:
+            total_referenced = 0
+            # Her entry'yi kontrol et ve referans edilen entry'leri ekle
+            for entry in entries:
+                entry_id = entry.get('entry_id')
+                if entry_id in referenced_entries_map:
+                    entry['referenced_content'] = referenced_entries_map[entry_id]
+                    total_referenced += len(referenced_entries_map[entry_id])
+            print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+        
+        # referenced_entry_ids alanını tüm entry'lerden kaldır (sadece iç kullanım içindi)
+        for entry in entries:
+            entry.pop('referenced_entry_ids', None)
+        
+        # Entry'leri dosyaya yaz (güncellenmiş liste ile)
+        if referenced_entries_map:
+            self._write_entries_to_file(entries)
         
         return entries
     
@@ -820,6 +966,10 @@ class EksisozlukScraper:
                     for elem in entry_elements[start_index:]:
                         entry = self._parse_entry(elem)
                         if entry:
+                            entry_id = entry.get('entry_id')
+                            # Entry ID'yi işaretle (duplikasyon önleme)
+                            if entry_id:
+                                self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
                             entries.append(entry)
                             # Max entries kontrolü
@@ -839,6 +989,10 @@ class EksisozlukScraper:
                     for elem in entry_elements:
                         entry = self._parse_entry(elem)
                         if entry:
+                            entry_id = entry.get('entry_id')
+                            # Entry ID'yi işaretle (duplikasyon önleme)
+                            if entry_id:
+                                self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
                             entries.append(entry)
                             # Max entries kontrolü
@@ -952,6 +1106,10 @@ class EksisozlukScraper:
                     entry = self._parse_entry(elem)
                     if entry and entry.get('entry_id') == entry_id:
                         found_start_entry = True
+                        entry_id_parsed = entry.get('entry_id')
+                        # Entry ID'yi işaretle (duplikasyon önleme)
+                        if entry_id_parsed:
+                            self.scraped_entry_ids.add(entry_id_parsed)
                         entry['title'] = title
                         entries.append(entry)
                         start_index = i
@@ -964,6 +1122,10 @@ class EksisozlukScraper:
                         for elem in entry_elements[start_index + 1:]:
                             entry = self._parse_entry(elem)
                             if entry:
+                                entry_id_parsed = entry.get('entry_id')
+                                # Entry ID'yi işaretle (duplikasyon önleme)
+                                if entry_id_parsed:
+                                    self.scraped_entry_ids.add(entry_id_parsed)
                                 entry['title'] = title
                                 entries.append(entry)
                                 # Max entries kontrolü
@@ -1032,6 +1194,10 @@ class EksisozlukScraper:
                     for elem in entry_elements:
                         entry = self._parse_entry(elem)
                         if entry:
+                            entry_id_parsed = entry.get('entry_id')
+                            # Entry ID'yi işaretle (duplikasyon önleme)
+                            if entry_id_parsed:
+                                self.scraped_entry_ids.add(entry_id_parsed)
                             entry['title'] = title
                             page_entries.append(entry)
                     
@@ -1061,6 +1227,27 @@ class EksisozlukScraper:
                     
                     page += 1
                     time.sleep(self.delay)
+        
+        # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
+        print(f"INFO: Referans edilen entry'ler kontrol ediliyor...", file=sys.stderr)
+        referenced_entries_map = self._fetch_referenced_entries(entries)
+        if referenced_entries_map:
+            total_referenced = 0
+            # Her entry'yi kontrol et ve referans edilen entry'leri ekle
+            for entry in entries:
+                entry_id = entry.get('entry_id')
+                if entry_id in referenced_entries_map:
+                    entry['referenced_content'] = referenced_entries_map[entry_id]
+                    total_referenced += len(referenced_entries_map[entry_id])
+            print(f"INFO: {total_referenced} referans edilen entry eklendi", file=sys.stderr)
+        
+        # referenced_entry_ids alanını tüm entry'lerden kaldır (sadece iç kullanım içindi)
+        for entry in entries:
+            entry.pop('referenced_entry_ids', None)
+        
+        # Entry'leri dosyaya yaz (güncellenmiş liste ile)
+        if referenced_entries_map:
+            self._write_entries_to_file(entries)
         
         return entries
 
