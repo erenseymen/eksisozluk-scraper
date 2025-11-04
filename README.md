@@ -22,7 +22,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 [![RPM Package](https://img.shields.io/badge/RPM-Download-red?style=for-the-badge&logo=redhat)](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper-1.1.0-1.noarch.rpm)
 [![AUR Package](https://img.shields.io/badge/AUR-Install-yellow?style=for-the-badge&logo=arch-linux)](https://aur.archlinux.org/packages/eksisozluk-scraper)
 
-### Python Script Olarak Çalıştırma
+### Alternatif metod: Python Script Olarak Çalıştırma
 
 Python scriptini doğrudan çalıştırabilirsiniz:
 
@@ -41,10 +41,6 @@ python3 eksisozluk_scraper.py "başlık adı"
 ```bash
 # Başlıktaki tüm entry'leri scrape et
 eksisozluk-scraper "başlık adı"
-
-# veya Python script ile
-python3 eksisozluk_scraper.py "başlık adı"
-```
 
 ### Zaman Filtreleme
 
