@@ -22,6 +22,7 @@ wheels/
 
 # Virtual environments
 venv/
+venv-build/
 env/
 ENV/
 
@@ -52,6 +53,17 @@ eksisozluk-scraper-*.tar.gz
 *.swp
 *.swo
 *~
+
+# Windows build (PyInstaller)
+*.exe
+dist/eksisozluk-scraper.exe
+build/eksisozluk-scraper/
+*.spec.bak
+# PyInstaller cache
+*.manifest
+*.pyd
+# Keep PyInstaller spec files (they are needed for building)
+!*.spec
 
 # OS
 .DS_Store

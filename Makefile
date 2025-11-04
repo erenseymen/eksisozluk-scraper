@@ -1,4 +1,4 @@
-.PHONY: build-deb build-rpm clean install test dist
+.PHONY: build-deb build-rpm build-windows clean install test dist
 
 # Build Debian package
 build-deb:
@@ -57,4 +57,19 @@ test:
 # Build source package
 build-source:
 	dpkg-buildpackage -S -us -uc
+
+# Build Windows executable (requires WSL or MSYS2 with Python and PyInstaller)
+build-windows:
+	@echo "Building Windows executable..."
+	@echo "Note: On Windows, use build-windows.bat or build-windows.ps1 instead"
+	@if command -v pyinstaller > /dev/null 2>&1; then \
+		pip3 install --upgrade pip setuptools wheel pyinstaller; \
+		pip3 install -r requirements.txt; \
+		pyinstaller --clean eksisozluk_scraper.spec; \
+		echo "Windows executable built successfully!"; \
+		echo "Find the executable in: dist/eksisozluk-scraper.exe"; \
+	else \
+		echo "Error: PyInstaller not found. Install it with: pip3 install pyinstaller"; \
+		exit 1; \
+	fi
 
