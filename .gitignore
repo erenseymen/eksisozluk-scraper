@@ -36,6 +36,7 @@ debian/*.log
 ../eksisozluk-scraper_*.tar.gz
 ../eksisozluk-scraper_*.buildinfo
 ../eksisozluk-scraper_*.changes
+eksisozluk-scraper_*.deb
 
 # IDE
 .vscode/
