@@ -1,10 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec file optimized to reduce antivirus false positives
-# 
-# Additional measures to reduce false positives:
-# - UPX compression disabled
-# - Version info included (makes executable more trustworthy)
-# - Clean build with no obfuscation
+# Alternative one-dir build spec - Sometimes less likely to trigger false positives
+# Usage: pyinstaller --clean eksisozluk_scraper_onedir.spec
 
 block_cipher = None
 
@@ -40,24 +36,29 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='eksisozluk-scraper',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # Disabled: UPX compression triggers false positives
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,  # Set to your code signing certificate if available
-    entitlements_file=None,
-    icon=None,
-    version='version_info.txt',  # Version info reduces false positives
+    codesign_identity=None,
+    version='version_info.txt',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='eksisozluk-scraper',
 )
 

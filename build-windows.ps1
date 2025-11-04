@@ -40,6 +40,17 @@ if (Test-Path "eksisozluk-scraper.exe") { Remove-Item -Force "eksisozluk-scraper
 Write-Host "`nBuilding executable..." -ForegroundColor Yellow
 pyinstaller --clean eksisozluk_scraper.spec
 
+# Code signing (optional - set CODESIGN_IDENTITY environment variable)
+if ($env:CODESIGN_IDENTITY) {
+    Write-Host "`nSigning executable..." -ForegroundColor Yellow
+    $exePath = "dist\eksisozluk-scraper.exe"
+    if (Test-Path $exePath) {
+        # Note: You need signtool.exe (part of Windows SDK) and a code signing certificate
+        # Example: signtool sign /f "certificate.pfx" /p "password" /t http://timestamp.digicert.com /v $exePath
+        Write-Host "Code signing skipped. Set up signtool and certificate for automatic signing." -ForegroundColor Yellow
+    }
+}
+
 # Check if build succeeded
 if (Test-Path "dist\eksisozluk-scraper.exe") {
     Write-Host "`nBuild successful!" -ForegroundColor Green
