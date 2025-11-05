@@ -10,7 +10,7 @@ make build-deb
 
 # Install
 sudo dpkg -i ../eksisozluk-scraper_*.deb
-sudo apt-get install -f  # Fix any missing dependencies
+sudo apt install -f  # Fix any missing dependencies
 ```
 
 ### Option 2: Python Package (Development)
@@ -141,8 +141,8 @@ eksisozluk-scraper "https://eksisozluk.com/python--123456"
 If package installation fails with dependency errors:
 
 ```bash
-sudo apt-get install -f
-sudo apt-get install python3-pip
+sudo apt install -f
+sudo apt install python3-pip
 pip3 install cloudscraper beautifulsoup4 argcomplete
 ```
 

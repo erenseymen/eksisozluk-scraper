@@ -8,7 +8,7 @@ Install the required build dependencies:
 
 ```bash
 sudo apt-get update
-sudo apt-get install build-essential debhelper dh-python python3-all python3-setuptools
+sudo apt install build-essential debhelper dh-python python3-all python3-setuptools
 ```
 
 ### Note on Python Dependencies
@@ -17,7 +17,7 @@ The package dependencies (cloudscraper, beautifulsoup4, argcomplete) will be ins
 
 If you encounter dependency issues, you may need to install them manually:
 ```bash
-sudo apt-get install python3-pip
+sudo apt install python3-pip
 pip3 install cloudscraper beautifulsoup4 argcomplete
 ```
 
@@ -60,7 +60,7 @@ sudo dpkg -i ../eksisozluk-scraper_*.deb
 If there are missing dependencies:
 
 ```bash
-sudo apt-get install -f
+sudo apt install -f
 ```
 
 ## Testing Tab Completion
