@@ -1691,7 +1691,7 @@ def main():
     )
     
     parser.add_argument('input', nargs='?', help='Başlık adı veya entry URL\'si')
-    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}', help='Program versiyonunu göster ve çık')
+    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}', help='Program versiyonunu göster ve çık')
     parser.add_argument('--days', type=int, help='Son N günlük entry\'leri scrape et')
     parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
     parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
