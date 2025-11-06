@@ -1493,7 +1493,7 @@ def main():
   eksisozluk-scraper "python" --delay 2.0 --max-retries 5
 
   # Çıktıyı başka komutlara pipe etme:
-  eksisozluk-scraper "meta quest 3" | gemini -p "Özetle"
+  eksisozluk-scraper "meta quest 3" | gemini -p "entry'leri özetle"
         """
     )
     
