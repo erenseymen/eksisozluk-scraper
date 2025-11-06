@@ -1475,7 +1475,7 @@ GEMINI_SUMMARY_PROMPT = """Aşağıda JSON formatında verilen Ekşi Sözlük en
 - Entry'lerden kısa ve anlamlı alıntılar ekle (tırnak işareti ile)
 
 ## Link Formatı:
-- Entry'lere referans verirken Markdown link formatı kullan: [link metni](https://eksisozluk.com/entry/<entry_id>)
+- Entry'lere referans verirken Markdown link formatı kullan: [link metni](https://eksisozluk.com/entry/{entry_id})
 - JSON'daki entry_id değerini kullanarak link oluştur
 - Link metni entry'nin anahtar kelimesini veya bağlama uygun bir ifadeyi içersin
 
@@ -1503,9 +1503,10 @@ Entry'lerdeki farklı görüşleri, deneyimleri, mizahı ve eleştirileri sentez
 Her alıntı şu formatta olsun:
 > [Entry içeriği]
 > 
-> — **[Yazar adı]** · [Tarih](Entry linki)
+> — **{yazar}** · [{tarih}](https://eksisozluk.com/entry/{entry_id})
 
-Entry linkini şu formatta oluştur: https://eksisozluk.com/entry/[entry_id]
+Notlar:
+- Yukarıdaki satırı aynen bu Markdown yapısıyla üret (tarih tıklanabilir link olsun).
 
 ## Çıktı Formatı
 - Yanıt YALNIZCA blog yazısı olsun (Markdown formatında)
@@ -1519,16 +1520,27 @@ def _check_gemini_cli():
     return shutil.which('gemini') is not None
 
 
-def _generate_gemini_output(json_data: str, prompt: str) -> Optional[str]:
-    """Gemini CLI'yi kullanarak JSON verisinden çıktı üretir"""
+def _generate_gemini_output(json_data: str, prompt: str, use_flash: bool = False) -> Optional[str]:
+    """Gemini CLI'yi kullanarak JSON verisinden çıktı üretir
+    
+    Args:
+        json_data: JSON formatında entry verisi
+        prompt: Gemini'ye gönderilecek prompt
+        use_flash: Flash modelini kullan (daha hızlı, daha düşük kalite)
+    """
     if not _check_gemini_cli():
         print("Hata: Gemini CLI bulunamadı. Lütfen 'gemini' komutunu kurun.", file=sys.stderr)
         return None
     
     try:
         # Gemini CLI'yi çağır
+        cmd = ['gemini']
+        if use_flash:
+            cmd.extend(['-m', 'gemini-2.5-flash'])
+        cmd.extend(['-p', prompt])
+        
         process = subprocess.Popen(
-            ['gemini', '-p', prompt],
+            cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1555,7 +1567,33 @@ def _generate_gemini_output(json_data: str, prompt: str) -> Optional[str]:
 
 
 
-def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, input_str: str = "", custom_prompt: Optional[str] = None, output_file: Optional[str] = None) -> Optional[str]:
+def _normalize_gemini_markdown(text: str) -> str:
+    """Gemini çıktısındaki küçük biçimlendirme sorunlarını düzeltir.
+
+    - "· 01.02.2003 (https://...)" → "· [01.02.2003](https://...)"
+    - Ardışık yinelenen satırları tekilleştirir
+    """
+    import re
+
+    # 1) Tarih + (URL) kalıbını tıklanabilir linke dönüştür
+    text = re.sub(
+        r"(·\s*)(\d{2}\.\d{2}\.\d{4})\s*\((https?://[^\)]+)\)",
+        r"\1[\2](\3)",
+        text,
+    )
+
+    # 2) Ardışık aynı satırları kaldır
+    lines = text.splitlines()
+    deduped_lines = []
+    last = None
+    for line in lines:
+        if line != last:
+            deduped_lines.append(line)
+        last = line
+    return "\n".join(deduped_lines).strip()
+
+
+def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, input_str: str = "", custom_prompt: Optional[str] = None, output_file: Optional[str] = None, use_flash: bool = False) -> Optional[str]:
     """Gemini çıktısını oluşturur, stdout'a yazdırır ve istenirse dosyaya kaydeder
     
     Args:
@@ -1564,6 +1602,7 @@ def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, inpu
         input_str: Input string (başlık veya URL)
         custom_prompt: Özel prompt (verilmişse mode yerine kullanılır)
         output_file: MD dosyası yolu (verilirse dosyaya kaydeder)
+        use_flash: Flash modelini kullan (daha hızlı, daha düşük kalite)
     
     Returns:
         Kaydedilen dosya yolu (eğer kaydedildiyse), None başarısız
@@ -1599,19 +1638,20 @@ def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, inpu
     
     # Gemini çıktısını al
     print(f"Gemini ile {mode_name} oluşturuluyor...", file=sys.stderr)
-    gemini_output = _generate_gemini_output(json_data, prompt)
+    gemini_output = _generate_gemini_output(json_data, prompt, use_flash=use_flash)
     
     if not gemini_output:
         return None
     
-    # Çıktıyı stdout'a yazdır
-    print(gemini_output)
+    # Çıktıyı normalize et ve stdout'a yazdır
+    normalized_output = _normalize_gemini_markdown(gemini_output)
+    print(normalized_output)
     
     # Eğer output_file belirtilmişse, MD dosyasına kaydet
     if output_file:
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(gemini_output)
+                f.write(normalized_output)
             print(f"Gemini çıktısı kaydedildi: {output_file}", file=sys.stderr)
             return output_file
         except Exception as e:
@@ -1708,6 +1748,7 @@ def main():
     gemini_group.add_argument('--özet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('--flash', dest='flash', action='store_true', help='Gemini CLI\'de flash modelini kullan (daha hızlı, daha düşük kalite)')
     
     # Enable tab completion if argcomplete is available
     if argcomplete:
@@ -1860,7 +1901,8 @@ def main():
             gemini_mode,
             args.input,
             custom_prompt=args.gemini_prompt,
-            output_file=gemini_output_file
+            output_file=gemini_output_file,
+            use_flash=args.flash
         )
         
         if gemini_file is None:

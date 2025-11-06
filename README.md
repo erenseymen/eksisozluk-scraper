@@ -177,6 +177,10 @@ eksisozluk-scraper "the beatles" -p "Entry'leri analiz et ve önemli noktaları 
 # Özel prompt ile çıktı oluştur ve kaydet
 eksisozluk-scraper "the beatles" -p "Analiz et" -o result.json
 # → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
+
+# Flash model ile özet oluştur
+eksisozluk-scraper "the beatles" --özet --flash
+
 ```
 
 #### Zaman Filtresi ile Birlikte Kullanım
