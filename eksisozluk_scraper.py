@@ -41,7 +41,7 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 1.5, max_retries: int = 3, retry_delay: float = 5.0, output_file: Optional[str] = None, max_entries: Optional[int] = None, fetch_referenced: bool = True):
+    def __init__(self, delay: float = 0.0, max_retries: int = 3, retry_delay: float = 1.0, output_file: Optional[str] = None, max_entries: Optional[int] = None, fetch_referenced: bool = True):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
@@ -1845,9 +1845,9 @@ def main():
     parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
     parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
     parser.add_argument('--years', type=int, help='Son N yıllık entry\'leri scrape et')
-    parser.add_argument('--delay', type=float, default=1.5, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 1.5)')
+    parser.add_argument('--delay', type=float, default=0.0, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 0.0)')
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
-    parser.add_argument('--retry-delay', type=float, default=5.0, help='Retry arası bekleme süresi (saniye, varsayılan: 5.0)')
+    parser.add_argument('--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')

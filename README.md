@@ -111,13 +111,13 @@ eksisozluk-scraper "başlık adı" --output sonuclar.markdown
 ### Gelişmiş Parametreler
 
 ```bash
-# Request'ler arası bekleme süresi (varsayılan: 1.5 saniye)
+# Request'ler arası bekleme süresi (varsayılan: 0 saniye)
 eksisozluk-scraper "başlık adı" --delay 2.0
 
 # Maksimum retry sayısı (varsayılan: 3)
 eksisozluk-scraper "başlık adı" --max-retries 5
 
-# Retry arası bekleme (varsayılan: 5.0 saniye)
+# Retry arası bekleme (varsayılan: 1 saniye)
 eksisozluk-scraper "başlık adı" --retry-delay 10.0
 
 # Referans edilen entry'leri fetch etme (varsayılan: True)
@@ -192,6 +192,5 @@ eksisozluk-scraper "the beatles" --years 1 --özet -o beatles-2024.json
 
 ## Notlar
 
-- Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
 - Hata durumlarında otomatik olarak belirli aralıklarla tekrar dener.
 - Gemini CLI entegrasyonu için Gemini CLI'nin kurulu olması ve Google hesabı ile giriş yapılmış olması gereklidir.
