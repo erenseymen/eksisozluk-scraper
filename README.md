@@ -15,6 +15,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting
 - ✅ Hata durumunda otomatik retry mekanizması
+- ✅ **Gemini CLI Integration** - AI destekli özet ve blog yazısı oluşturma
 
 ## Kurulum
 
@@ -130,7 +131,63 @@ eksisozluk-scraper "başlık adı" --no-bkz
 eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
 ```
 
+## Gemini CLI Integration
+
+Scraper, [Gemini CLI](https://github.com/google-gemini/gemini-cli) ile entegre çalışarak AI destekli özet ve blog yazıları oluşturabilir.
+
+### Kurulum
+
+Önce Gemini CLI'yi kurmanız gerekir:
+
+https://geminicli.com/
+
+### Kullanım
+
+#### Özet Oluşturma
+
+```bash
+# Entry'leri özetle ve stdout'a yazdır
+eksisozluk-scraper "the beatles" --özet
+
+# Özet oluştur ve dosyalara kaydet
+eksisozluk-scraper "the beatles" --özet -o beatles.json
+# → beatles.json (JSON) ve beatles.md (Gemini özet) oluşturulur
+```
+
+#### Blog Yazısı Oluşturma
+
+```bash
+# Entry'lerden blog yazısı oluştur ve stdout'a yazdır
+eksisozluk-scraper "the beatles" --blog
+
+# Blog yazısı oluştur ve dosyalara kaydet
+eksisozluk-scraper "the beatles" --blog -o beatles.json
+# → beatles.json (JSON) ve beatles.md (Gemini blog) oluşturulur
+```
+
+#### Özel Prompt Kullanma
+
+```bash
+# Özel prompt ile çıktı oluştur
+eksisozluk-scraper "the beatles" --prompt "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et"
+
+# Kısa form
+eksisozluk-scraper "the beatles" -p "Entry'leri analiz et ve önemli noktaları listele"
+
+# Özel prompt ile çıktı oluştur ve kaydet
+eksisozluk-scraper "the beatles" -p "Analiz et" -o result.json
+# → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
+```
+
+#### Zaman Filtresi ile Birlikte Kullanım
+
+```bash
+# Son 1 yıllık entry'leri özetle ve dosyaya kaydet
+eksisozluk-scraper "the beatles" --years 1 --özet -o beatles-2024.json
+```
+
 ## Notlar
 
 - Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
 - Hata durumlarında otomatik olarak belirli aralıklarla tekrar dener.
+- Gemini CLI entegrasyonu için Gemini CLI'nin kurulu olması ve Google hesabı ile giriş yapılmış olması gereklidir.

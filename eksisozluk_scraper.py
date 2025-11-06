@@ -17,6 +17,9 @@ import re
 import time
 import sys
 import signal
+import subprocess
+import os
+import shutil
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from urllib.parse import urlparse, parse_qs
@@ -1454,6 +1457,170 @@ class EksisozlukScraper:
         return entries
 
 
+# Gemini prompt'ları
+GEMINI_SUMMARY_PROMPT = """Aşağıda JSON formatında verilen Ekşi Sözlük entry'lerini analiz ederek kapsamlı bir özet hazırla.
+
+## Görev:
+- Ana konuları ve tartışma başlıklarını belirle
+- Farklı görüşler ve fikir ayrılıklarını dengeli bir şekilde sun
+- Mizahi, ironik veya dikkat çekici entry'leri vurgula
+- Özgün ve derinlemesine görüşleri öne çıkar
+- Entry'lerin kronolojik veya tematik akışını göz önünde bulundur
+
+## Format ve Dil:
+- Markdown formatında yaz (başlıklar, listeler, vurgular kullan)
+- Bilgi verici, tarafsız ve profesyonel bir dil kullan
+- Akıcı ve okunabilir bir metin oluştur
+- Gereksiz spekülasyon veya çıkarımdan kaçın
+- Entry'lerden kısa ve anlamlı alıntılar ekle (tırnak işareti ile)
+
+## Link Formatı:
+- Entry'lere referans verirken Markdown link formatı kullan: [link metni](https://eksisozluk.com/entry/<entry_id>)
+- JSON'daki entry_id değerini kullanarak link oluştur
+- Link metni entry'nin anahtar kelimesini veya bağlama uygun bir ifadeyi içersin
+
+## Çıktı:
+Yanıtın sadece özet metni olsun, ek açıklama veya meta bilgi içermesin."""
+
+GEMINI_BLOG_PROMPT = """Aşağıda JSON formatında verilen Ekşi Sözlük entry'lerine dayalı, kapsamlı ve okunabilir bir blog yazısı yaz.
+
+## Görev
+Entry'lerdeki farklı görüşleri, deneyimleri, mizahı ve eleştirileri sentezleyerek, konuyu derinlemesine ele alan bir blog yazısı oluştur.
+
+## Yazı Üslubu ve Stil
+- Akıcı, samimi ve erişilebilir bir dil kullan
+- Analitik ve düşündürücü ol, ancak akademik bir üsluptan kaçın
+- Farklı perspektifleri dengeli bir şekilde sun
+- Gerektiğinde örnekler, anekdotlar ve ilginç detaylar ekle
+- Spekülasyondan kaçın, yalnızca entry'lerdeki bilgileri kullan
+
+## İçerik Yapısı
+1. Giriş: Konuyu kısa bir özetle tanıt ve entry'lerden çıkan ana temaları belirt
+2. Gelişme: Farklı bakış açılarını, görüşleri ve deneyimleri kategorize ederek sun
+3. Sonuç: Genel gözlemler ve öne çıkan noktaları özetle
+
+## Alıntı Formatı
+Her alıntı şu formatta olsun:
+> [Entry içeriği]
+> 
+> — **[Yazar adı]**, [Tarih] · [Entry linki]
+
+Entry linkini şu formatta oluştur: https://eksisozluk.com/entry/[entry_id]
+
+## Çıktı Formatı
+- Yanıt YALNIZCA blog yazısı olsun (Markdown formatında)
+- Başlık, alt başlıklar ve paragrafları uygun şekilde formatla
+- Entry'lerden bol bol alıntı yap, farklı görüşleri yansıt
+- Her alıntıda yazar, tarih ve link bilgilerini mutlaka ekle"""
+
+
+def _check_gemini_cli():
+    """Gemini CLI'nin kurulu olup olmadığını kontrol eder"""
+    return shutil.which('gemini') is not None
+
+
+def _generate_gemini_output(json_data: str, prompt: str) -> Optional[str]:
+    """Gemini CLI'yi kullanarak JSON verisinden çıktı üretir"""
+    if not _check_gemini_cli():
+        print("Hata: Gemini CLI bulunamadı. Lütfen 'gemini' komutunu kurun.", file=sys.stderr)
+        return None
+    
+    try:
+        # Gemini CLI'yi çağır
+        process = subprocess.Popen(
+            ['gemini', '-p', prompt],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8'
+        )
+        
+        stdout, stderr = process.communicate(input=json_data, timeout=300)  # 5 dakika timeout
+        
+        if process.returncode != 0:
+            print(f"Gemini CLI hatası: {stderr}", file=sys.stderr)
+            return None
+        
+        return stdout.strip()
+    
+    except subprocess.TimeoutExpired:
+        print("Hata: Gemini CLI yanıt vermedi (timeout)", file=sys.stderr)
+        process.kill()
+        return None
+    except Exception as e:
+        print(f"Gemini CLI çağrısı sırasında hata: {e}", file=sys.stderr)
+        return None
+
+
+
+
+def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, input_str: str = "", custom_prompt: Optional[str] = None, output_file: Optional[str] = None) -> Optional[str]:
+    """Gemini çıktısını oluşturur, stdout'a yazdırır ve istenirse dosyaya kaydeder
+    
+    Args:
+        entries: Entry listesi
+        mode: 'summary' veya 'blog' (custom_prompt verilmişse None olabilir)
+        input_str: Input string (başlık veya URL)
+        custom_prompt: Özel prompt (verilmişse mode yerine kullanılır)
+        output_file: MD dosyası yolu (verilirse dosyaya kaydeder)
+    
+    Returns:
+        Kaydedilen dosya yolu (eğer kaydedildiyse), None başarısız
+    """
+    if not entries:
+        print("Uyarı: Entry bulunamadı, Gemini çıktısı oluşturulamadı", file=sys.stderr)
+        return None
+    
+    # Prompt seç
+    if custom_prompt:
+        prompt = custom_prompt
+        mode_name = 'özel prompt'
+    elif mode == 'summary':
+        prompt = GEMINI_SUMMARY_PROMPT
+        mode_name = 'özet'
+    elif mode == 'blog':
+        prompt = GEMINI_BLOG_PROMPT
+        mode_name = 'blog yazısı'
+    else:
+        print(f"Hata: Geçersiz mod veya prompt belirtilmemiş: {mode}", file=sys.stderr)
+        return None
+    
+    # JSON verisini hazırla
+    output_data = {
+        'scrape_info': {
+            'timestamp': datetime.now().isoformat(),
+            'total_entries': len(entries),
+            'input': input_str
+        },
+        'entries': entries
+    }
+    json_data = json.dumps(output_data, ensure_ascii=False, indent=2)
+    
+    # Gemini çıktısını al
+    print(f"Gemini ile {mode_name} oluşturuluyor...", file=sys.stderr)
+    gemini_output = _generate_gemini_output(json_data, prompt)
+    
+    if not gemini_output:
+        return None
+    
+    # Çıktıyı stdout'a yazdır
+    print(gemini_output)
+    
+    # Eğer output_file belirtilmişse, MD dosyasına kaydet
+    if output_file:
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(gemini_output)
+            print(f"Gemini çıktısı kaydedildi: {output_file}", file=sys.stderr)
+            return output_file
+        except Exception as e:
+            print(f"Hata: Gemini çıktısı dosyaya yazılamadı: {e}", file=sys.stderr)
+            return None
+    
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper. Desteklenen çıktı formatları: JSON (varsayılan), CSV (.csv), Markdown (.md, .markdown). Format dosya uzantısından otomatik tespit edilir.',
@@ -1494,6 +1661,32 @@ def main():
 
   # Çıktıyı başka komutlara pipe etme:
   eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
+
+  # *Gemini CLI integration* (Install gemini cli from https://github.com/google/gemini-cli)
+
+  # Gemini CLI ile özet oluştur (stdout'a yazdırır):
+  eksisozluk-scraper "the beatles" --özet
+
+  # Gemini CLI ile blog yazısı oluştur (stdout'a yazdırır):
+  eksisozluk-scraper "the beatles" --blog
+
+  # Özel prompt ile Gemini çıktısı oluştur:
+  eksisozluk-scraper "the beatles" --prompt "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et"
+
+  # Gemini özet oluştur ve dosyalara kaydet:
+  eksisozluk-scraper "the beatles" --özet -o beatles.json
+  # → beatles.json (JSON) ve beatles.md (Gemini özet) oluşturulur
+
+  # Gemini blog yazısı oluştur ve dosyalara kaydet:
+  eksisozluk-scraper "the beatles" --blog -o beatles.json
+  # → beatles.json (JSON) ve beatles.md (Gemini blog) oluşturulur
+
+  # Özel prompt ile çıktı oluştur ve kaydet:
+  eksisozluk-scraper "the beatles" -p "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et" -o result.json
+  # → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
+
+  # Son 1 yıllık entry'leri özetle ve dosyaya kaydet:
+  eksisozluk-scraper "the beatles" --years 1 --özet -o beatles-2024.json
         """
     )
     
@@ -1509,6 +1702,12 @@ def main():
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
+    
+    # Gemini CLI Integration grubu
+    gemini_group = parser.add_argument_group('Gemini CLI Integration', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
+    gemini_group.add_argument('--özet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
     
     # Enable tab completion if argcomplete is available
     if argcomplete:
@@ -1623,6 +1822,60 @@ def main():
         
         sys.exit(0)
     
+    # Gemini modu varsa çıktıyı Gemini ile işle
+    gemini_mode = None
+    if args.gemini_prompt:
+        # Özel prompt kullan
+        gemini_mode = None  # Custom prompt kullanılacak
+    elif args.gemini_summary:
+        gemini_mode = 'summary'
+    elif args.gemini_blog:
+        gemini_mode = 'blog'
+    
+    if gemini_mode or args.gemini_prompt:
+        # Entry'leri tarihe göre sırala
+        sorted_entries = scraper._sort_entries_by_date(entries)
+        
+        # Eğer -o parametresi kullanıldıysa, Gemini çıktısı için MD dosyası oluştur
+        gemini_output_file = None
+        if args.output:
+            # Output dosyasından MD dosyası adı oluştur
+            output_path = args.output
+            # Dosya uzantısını değiştir veya ekle
+            if output_path.endswith('.json'):
+                gemini_output_file = output_path[:-5] + '.md'
+            elif output_path.endswith('.csv'):
+                gemini_output_file = output_path[:-4] + '.md'
+            elif output_path.endswith('.md') or output_path.endswith('.markdown'):
+                # Zaten MD dosyası, gemini için ek bir dosya oluştur
+                base_name = output_path.rsplit('.', 1)[0]
+                gemini_output_file = f"{base_name}-gemini.md"
+            else:
+                # Uzantı yoksa veya bilinmeyen uzantıysa .md ekle
+                gemini_output_file = f"{output_path}.gemini.md"
+        
+        # Gemini çıktısını oluştur ve stdout'a yazdır
+        gemini_file = _process_gemini_output(
+            sorted_entries,
+            gemini_mode,
+            args.input,
+            custom_prompt=args.gemini_prompt,
+            output_file=gemini_output_file
+        )
+        
+        if gemini_file is None:
+            print("Gemini işlemi başarısız oldu", file=sys.stderr)
+            sys.exit(1)
+        
+        # Bash script uyumluluğu için dosya yollarını stderr'e yazdır (parse edilebilir format)
+        if gemini_file:
+            print(f"GEMINI_OUTPUT_FILE={gemini_file}", file=sys.stderr)
+        if args.output:
+            print(f"JSON_OUTPUT_FILE={args.output}", file=sys.stderr)
+        
+        # Gemini modu aktifse JSON çıktısı verme (sadece Gemini çıktısı yeterli)
+        sys.exit(0)
+    
     # Çıktıyı hazırla (output dosyası belirtilmemişse stdout'a yaz)
     if not args.output:
         # Entry'leri tarihe göre sırala
@@ -1640,9 +1893,11 @@ def main():
         # JSON olarak çıktı ver
         output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
         print(output_json)
-    else:
+    elif args.output:
         # Output dosyası zaten incremental olarak yazıldı, sadece bilgi ver
         print(f"Harika! Toplam {len(entries)} entry {args.output} dosyasına kaydedildi", file=sys.stderr)
+        # Bash script uyumluluğu için dosya yolunu stderr'e yazdır (parse edilebilir format)
+        print(f"JSON_OUTPUT_FILE={args.output}", file=sys.stderr)
 
 
 if __name__ == '__main__':
