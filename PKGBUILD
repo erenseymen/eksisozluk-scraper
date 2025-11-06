@@ -10,6 +10,7 @@ depends=(
   'python'
   'python-beautifulsoup4'
   'python-argcomplete'
+  'python-rich'
   'python-requests'
   'python-urllib3'
   'python-charset-normalizer'

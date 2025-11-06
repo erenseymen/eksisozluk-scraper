@@ -12,7 +12,8 @@ Depends: ${misc:Depends},
          python3,
          python3-cloudscraper,
          python3-bs4,
-         python3-argcomplete
+         python3-argcomplete,
+         python3-rich
 Description: Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper
  Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda:
  JSON (varsayılan), CSV ve Markdown.

@@ -20,12 +20,20 @@ import signal
 import subprocess
 import os
 import shutil
+import textwrap
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from urllib.parse import urlparse, parse_qs
 
 import cloudscraper
 from bs4 import BeautifulSoup
+
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+except ImportError:
+    Console = None  # type: ignore
+    Markdown = None  # type: ignore
 
 
 class EksisozlukScraper:
@@ -1593,6 +1601,107 @@ def _normalize_gemini_markdown(text: str) -> str:
     return "\n".join(deduped_lines).strip()
 
 
+_markdown_console: Optional[Any] = None
+
+
+def _wrap_markdown_text(markdown_text: str) -> str:
+    """Markdown metnini sözcük bölünmeden terminal genişliğine göre sarar."""
+    try:
+        columns = shutil.get_terminal_size(fallback=(100, 24)).columns
+    except Exception:
+        columns = 100
+
+    width = max(60, min(columns, 140)) - 2
+    width = max(width, 40)
+
+    wrapped_lines = []
+    in_code_block = False
+    fence = None
+
+    lines = markdown_text.splitlines()
+    for line in lines:
+        stripped = line.lstrip()
+
+        if stripped.startswith("```"):
+            if not in_code_block:
+                fence = stripped
+                in_code_block = True
+            elif fence == stripped or stripped.startswith("```"):
+                in_code_block = False
+            wrapped_lines.append(line)
+            continue
+
+        if in_code_block or not stripped:
+            wrapped_lines.append(line)
+            continue
+
+        if stripped.startswith("#") or stripped.startswith(">"):
+            wrapped_lines.append(line)
+            continue
+
+        indent_len = len(line) - len(stripped)
+        indent = line[:indent_len]
+
+        bullet_match = re.match(r"([\*\-\+•]\s+)", stripped)
+        number_match = re.match(r"((?:\d+[\.\)]|[IVXLCDM]+\.)\s+)", stripped, flags=re.IGNORECASE)
+
+        wrapper_kwargs = {
+            "width": width,
+            "break_long_words": False,
+            "break_on_hyphens": False,
+        }
+
+        if bullet_match:
+            prefix = bullet_match.group(0)
+            content = stripped[len(prefix):].strip()
+            wrapper = textwrap.TextWrapper(
+                initial_indent=indent + prefix,
+                subsequent_indent=indent + " " * len(prefix),
+                **wrapper_kwargs,
+            )
+            wrapped_lines.extend(wrapper.fill(content).splitlines() if content else [indent + prefix.rstrip()])
+            continue
+
+        if number_match:
+            prefix = number_match.group(0)
+            content = stripped[len(prefix):].strip()
+            wrapper = textwrap.TextWrapper(
+                initial_indent=indent + prefix,
+                subsequent_indent=indent + " " * len(prefix),
+                **wrapper_kwargs,
+            )
+            wrapped_lines.extend(wrapper.fill(content).splitlines() if content else [indent + prefix.rstrip()])
+            continue
+
+        wrapper = textwrap.TextWrapper(
+            initial_indent=indent,
+            subsequent_indent=indent,
+            **wrapper_kwargs,
+        )
+        wrapped_lines.extend(wrapper.fill(stripped).splitlines())
+
+    return "\n".join(wrapped_lines)
+
+
+def _display_markdown_viewer(markdown_text: str) -> None:
+    """Gemini çıktısını terminalde Markdown olarak render eder."""
+    if not markdown_text:
+        return
+
+    formatted_text = _wrap_markdown_text(markdown_text)
+
+    if Console is None or Markdown is None or not sys.stdout.isatty():
+        # Rich mevcut değilse veya çıktı başka bir programa yönlendirilmişse düz metin yazdır
+        print(formatted_text)
+        return
+
+    global _markdown_console
+    if _markdown_console is None:
+        _markdown_console = Console(soft_wrap=False)
+
+    _markdown_console.print(Markdown(formatted_text), soft_wrap=False)
+
+
 def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, input_str: str = "", custom_prompt: Optional[str] = None, output_file: Optional[str] = None, use_flash: bool = False) -> Optional[str]:
     """Gemini çıktısını oluşturur, stdout'a yazdırır ve istenirse dosyaya kaydeder
     
@@ -1645,7 +1754,7 @@ def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, inpu
     
     # Çıktıyı normalize et ve stdout'a yazdır
     normalized_output = _normalize_gemini_markdown(gemini_output)
-    print(normalized_output)
+    _display_markdown_viewer(normalized_output)
     
     # Eğer output_file belirtilmişse, MD dosyasına kaydet
     if output_file:
