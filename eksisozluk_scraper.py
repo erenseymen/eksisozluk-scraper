@@ -4,6 +4,8 @@ Ekşi Sözlük Scraper
 Terminal tabanlı, AI-friendly output üreten scraper.
 """
 
+__version__ = "1.1.0"
+
 import argparse
 try:
     import argcomplete
@@ -1495,7 +1497,8 @@ def main():
         """
     )
     
-    parser.add_argument('input', help='Başlık adı veya entry URL\'si')
+    parser.add_argument('input', nargs='?', help='Başlık adı veya entry URL\'si')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}', help='Program versiyonunu göster ve çık')
     parser.add_argument('--days', type=int, help='Son N günlük entry\'leri scrape et')
     parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
     parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
@@ -1512,6 +1515,10 @@ def main():
         argcomplete.autocomplete(parser)
     
     args = parser.parse_args()
+    
+    # Input kontrolü - --version kullanıldıysa buraya gelmez (argparse otomatik çıkar)
+    if not args.input:
+        parser.error('input argümanı gereklidir (başlık adı veya entry URL\'si)')
     
     # Zaman filtresi hesapla
     time_filter = None
