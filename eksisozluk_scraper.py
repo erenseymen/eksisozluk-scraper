@@ -1503,7 +1503,7 @@ Entry'lerdeki farklı görüşleri, deneyimleri, mizahı ve eleştirileri sentez
 Her alıntı şu formatta olsun:
 > [Entry içeriği]
 > 
-> — **[Yazar adı]**, [Tarih] · [Entry linki]
+> — **[Yazar adı]** · [Tarih](Entry linki)
 
 Entry linkini şu formatta oluştur: https://eksisozluk.com/entry/[entry_id]
 
