@@ -123,6 +123,13 @@ eksisozluk-scraper "başlık adı" --retry-delay 10.0
 eksisozluk-scraper "başlık adı" --no-bkz
 ```
 
+### Çıktıyı Başka Komutlara Pipe Etme
+
+```bash
+# Çıktıyı Gemini'ye pipe ederek özetleme
+eksisozluk-scraper "meta quest 3" | gemini -p "Özetle"
+```
+
 ## Notlar
 
 - Scraper, Ekşi Sözlük'e aşırı yük bindirmemek için her request arasında varsayılan 1.5 saniye bekler.
