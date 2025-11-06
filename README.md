@@ -127,7 +127,7 @@ eksisozluk-scraper "başlık adı" --no-bkz
 
 ```bash
 # Çıktıyı Gemini'ye pipe ederek özetleme
-eksisozluk-scraper "meta quest 3" | gemini -p "entry'leri özetle"
+eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
 ```
 
 ## Notlar
