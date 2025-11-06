@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eksisozluk-scraper"
+version = "1.1.0"
+description = "Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "GPL-3.0-or-later"
+authors = [
+    {name = "Eren Seymen"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "cloudscraper>=1.2.71",
+    "beautifulsoup4>=4.12.0",
+    "argcomplete>=3.0.0",
+]
+
+[project.scripts]
+eksisozluk-scraper = "eksisozluk_scraper:main"
+
+[project.urls]
+Homepage = "https://github.com/erenseymen/eksisozluk-scraper"
+Repository = "https://github.com/erenseymen/eksisozluk-scraper"
+Issues = "https://github.com/erenseymen/eksisozluk-scraper/issues"
+
+[tool.setuptools]
+py-modules = ["eksisozluk_scraper"]
+
+[tool.setuptools.package-data]
+"*" = ["completions/*.fish", "templates/*.html"]
+

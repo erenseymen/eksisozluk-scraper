@@ -23,6 +23,7 @@ wheels/
 # Virtual environments
 venv/
 venv-build/
+.venv/
 env/
 ENV/
 
@@ -46,6 +47,7 @@ pkg/
 src/
 aur-package/
 eksisozluk-scraper-*.tar.gz
+.SRCINFO
 
 # IDE
 .vscode/
@@ -68,3 +70,6 @@ build/eksisozluk-scraper/
 # OS
 .DS_Store
 Thumbs.db
+
+# PyPI build artifacts (wheels)
+*.whl

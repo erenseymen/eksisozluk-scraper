@@ -23,11 +23,28 @@ Cursor (yapay zeka) ile yazılmıştır.
 [![AUR Package](https://img.shields.io/badge/AUR-Install-yellow?style=for-the-badge&logo=arch-linux)](https://aur.archlinux.org/packages/eksisozluk-scraper)
 [![Windows Executable](https://img.shields.io/badge/Windows-Download-blue?style=for-the-badge&logo=windows)](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v1.1.0/eksisozluk-scraper.exe)
 
+### Pip ile Kurulum (Pipx de deneyin)
+
+```bash
+pip install eksisozluk-scraper
+```
+
+ya da
+
+```bash
+pip install git+https://github.com/erenseymen/eksisozluk-scraper.git
+
+```
+
 ### Alternatif metod: Python Script Olarak Çalıştırma
 
 Python scriptini doğrudan çalıştırabilirsiniz:
 
 ```bash
+# Repoyu klonla
+git clone https://github.com/erenseymen/eksisozluk-scraper.git
+cd eksisozluk-scraper
+
 # Bağımlılıkları kur
 pip3 install -r requirements.txt
 
@@ -42,6 +59,7 @@ python3 eksisozluk_scraper.py "başlık adı"
 ```bash
 # Başlıktaki tüm entry'leri scrape et
 eksisozluk-scraper "başlık adı"
+```
 
 ### Zaman Filtreleme
 
