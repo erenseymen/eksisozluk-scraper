@@ -147,10 +147,10 @@ https://geminicli.com/
 
 ```bash
 # Entry'leri özetle ve stdout'a yazdır
-eksisozluk-scraper "the beatles" --özet
+eksisozluk-scraper "the beatles" --ozet
 
 # Özet oluştur ve dosyalara kaydet
-eksisozluk-scraper "the beatles" --özet -o beatles.json
+eksisozluk-scraper "the beatles" --ozet -o beatles.json
 # → beatles.json (JSON) ve beatles.md (Gemini özet) oluşturulur
 ```
 
@@ -179,7 +179,7 @@ eksisozluk-scraper "the beatles" -p "Analiz et" -o result.json
 # → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
 
 # Flash model ile özet oluştur
-eksisozluk-scraper "the beatles" --özet --flash
+eksisozluk-scraper "the beatles" --ozet --flash
 
 ```
 
@@ -187,7 +187,7 @@ eksisozluk-scraper "the beatles" --özet --flash
 
 ```bash
 # Son 1 yıllık entry'leri özetle ve dosyaya kaydet
-eksisozluk-scraper "the beatles" --years 1 --özet -o beatles-2024.json
+eksisozluk-scraper "the beatles" --years 1 --ozet -o beatles-2024.json
 ```
 
 ## Notlar

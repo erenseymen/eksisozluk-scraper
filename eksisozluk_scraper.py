@@ -1814,7 +1814,7 @@ def main():
   # *Gemini CLI entegrasyonu* (Gemini CLI kurmak için: https://geminicli.com)
 
   # Gemini CLI ile özet oluştur (stdout'a yazdırır):
-  eksisozluk-scraper "the beatles" --özet
+  eksisozluk-scraper "the beatles" --ozet
 
   # Gemini CLI ile blog yazısı oluştur (stdout'a yazdırır):
   eksisozluk-scraper "the beatles" --blog
@@ -1823,7 +1823,7 @@ def main():
   eksisozluk-scraper "the beatles" --prompt "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et"
 
   # Gemini özet oluştur ve dosyalara kaydet:
-  eksisozluk-scraper "the beatles" --özet -o beatles.json
+  eksisozluk-scraper "the beatles" --ozet -o beatles.json
   # → beatles.json (JSON) ve beatles.md (Gemini özet) oluşturulur
 
   # Gemini blog yazısı oluştur ve dosyalara kaydet:
@@ -1835,7 +1835,7 @@ def main():
   # → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
 
   # Son 1 yıllık entry'leri özetle ve dosyaya kaydet:
-  eksisozluk-scraper "the beatles" --years 1 --özet -o beatles-2024.json
+  eksisozluk-scraper "the beatles" --years 1 --ozet -o beatles-2024.json
         """
     )
     
@@ -1854,7 +1854,7 @@ def main():
     
     # Gemini CLI entegrasyonu grubu
     gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
-    gemini_group.add_argument('--özet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('--ozet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--flash', dest='flash', action='store_true', help='Gemini CLI\'de flash modelini kullan (daha hızlı, daha düşük kalite)')
