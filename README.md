@@ -15,7 +15,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting
 - ✅ Hata durumunda otomatik retry mekanizması
-- ✅ **Gemini CLI Integration** - AI destekli özet ve blog yazısı oluşturma
+- ✅ **Gemini CLI entegrasyonu** - AI destekli özet ve blog yazısı oluşturma
 
 ## Kurulum
 
@@ -131,7 +131,7 @@ eksisozluk-scraper "başlık adı" --no-bkz
 eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
 ```
 
-## Gemini CLI Integration
+## Gemini CLI entegrasyonu
 
 Scraper, [Gemini CLI](https://github.com/google-gemini/gemini-cli) ile entegre çalışarak AI destekli özet ve blog yazıları oluşturabilir.
 

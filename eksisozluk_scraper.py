@@ -1662,7 +1662,7 @@ def main():
   # Çıktıyı başka komutlara pipe etme:
   eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
 
-  # *Gemini CLI integration* (Install gemini cli from https://github.com/google/gemini-cli)
+  # *Gemini CLI entegrasyonu* (Gemini CLI kurmak için: https://geminicli.com)
 
   # Gemini CLI ile özet oluştur (stdout'a yazdırır):
   eksisozluk-scraper "the beatles" --özet
@@ -1703,8 +1703,8 @@ def main():
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
     
-    # Gemini CLI Integration grubu
-    gemini_group = parser.add_argument_group('Gemini CLI Integration', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
+    # Gemini CLI entegrasyonu grubu
+    gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
     gemini_group.add_argument('--özet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
