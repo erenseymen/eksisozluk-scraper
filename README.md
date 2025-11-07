@@ -85,6 +85,19 @@ eksisozluk-scraper "başlık adı" --years 1
 eksisozluk-scraper "başlık adı" --max-entries 100
 ```
 
+### Entry Filtreleme
+
+```bash
+# İçeriğinde "python" geçen entry'leri getir
+eksisozluk-scraper "başlık adı" --filter python
+
+# Birden fazla filtre (AND)
+eksisozluk-scraper "başlık adı" --filter python --filter asyncio
+
+# Karma OR/AND örneği
+eksisozluk-scraper "titanic" --filter film --filter "aşk|gemi"
+```
+
 ### Belirli Entry'den İtibaren Scrape Etme
 
 ```bash
