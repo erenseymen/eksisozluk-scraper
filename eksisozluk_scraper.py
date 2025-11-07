@@ -21,6 +21,7 @@ import subprocess
 import os
 import shutil
 import textwrap
+import unicodedata
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from urllib.parse import urlparse, parse_qs, urljoin
@@ -40,6 +41,17 @@ class EksisozlukScraper:
     """Ekşi Sözlük scraper sınıfı"""
     
     BASE_URL = "https://eksisozluk.com"
+    FILTER_CHAR_TRANSLATION = str.maketrans({
+        'ı': 'i',
+        'ş': 's',
+        'ğ': 'g',
+        'ç': 'c',
+        'ö': 'o',
+        'ü': 'u',
+        'â': 'a',
+        'î': 'i',
+        'û': 'u',
+    })
     
     def __init__(
         self,
@@ -81,7 +93,9 @@ class EksisozlukScraper:
                 ):
                     cleaned = cleaned[1:-1].strip()
                 if cleaned:
-                    normalized_parts.append(cleaned.casefold())
+                    normalized_token = self._normalize_filter_text(cleaned)
+                    if normalized_token:
+                        normalized_parts.append(normalized_token)
             if normalized_parts:
                 self._filter_groups.append(normalized_parts)
         self.scrape_start_time = None
@@ -102,6 +116,15 @@ class EksisozlukScraper:
         self.session.headers.update({
             'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         })
+    
+    def _normalize_filter_text(self, text: str) -> str:
+        """Filtre karşılaştırması için metni normalize eder (case-insensitive + diakritiksiz)"""
+        if not isinstance(text, str):
+            return ''
+        casefolded = text.casefold()
+        normalized = unicodedata.normalize('NFKD', casefolded)
+        stripped = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        return stripped.translate(self.FILTER_CHAR_TRANSLATION)
     
     def _make_request(self, url: str):
         """HTTP request yapar, retry mekanizması ile"""
@@ -320,7 +343,8 @@ class EksisozlukScraper:
                         ref.get('title', ''),
                     ])
         
-        haystack = ' '.join(part for part in content_parts if isinstance(part, str)).casefold()
+        haystack_raw = ' '.join(part for part in content_parts if isinstance(part, str))
+        haystack = self._normalize_filter_text(haystack_raw)
         for group in self._filter_groups:
             if not any(token in haystack for token in group):
                 return False
