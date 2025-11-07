@@ -332,17 +332,6 @@ class EksisozlukScraper:
             entry.get('entry_id', ''),
         ]
         
-        # Referans içerikleri varsa, onları da filtre eşleşmesine dahil et
-        referenced_content = entry.get('referenced_content', [])
-        if isinstance(referenced_content, list):
-            for ref in referenced_content:
-                if isinstance(ref, dict):
-                    content_parts.extend([
-                        ref.get('content', ''),
-                        ref.get('text', ''),
-                        ref.get('title', ''),
-                    ])
-        
         haystack_raw = ' '.join(part for part in content_parts if isinstance(part, str))
         haystack = self._normalize_filter_text(haystack_raw)
         for group in self._filter_groups:
