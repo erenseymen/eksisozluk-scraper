@@ -23,7 +23,7 @@ import shutil
 import textwrap
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urljoin
 
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -62,6 +62,7 @@ class EksisozlukScraper:
         self.scrape_time_filter = None
         self.current_entries = []  # Mevcut entry'leri tutmak için
         self.scraped_entry_ids = set()  # Scrape edilmiş entry ID'lerini tutmak için (duplikasyon önleme)
+        self.url_content_cache: Dict[str, Dict[str, Any]] = {}
         # cloudscraper Cloudflare korumasını bypass eder
         self.session = cloudscraper.create_scraper(
             browser={
@@ -181,6 +182,53 @@ class EksisozlukScraper:
                 referenced_entry_ids = list(set(referenced_entry_ids))
                 if referenced_entry_ids:
                     entry_data['referenced_entry_ids'] = referenced_entry_ids  # İç kullanım için - sonra kaldırılacak
+                
+                # Entry içindeki harici URL'leri topla
+                referenced_urls = []
+                seen_urls = set()
+                all_links = content_elem.find_all('a', href=True)
+                for link in all_links:
+                    href = link.get('href', '').strip()
+                    if not href:
+                        continue
+                    # Entry referanslarını atla (onlar ayrı handle edilecek)
+                    if re.search(r'(?:/entry/|entry--)\d+', href):
+                        continue
+                    if href.startswith('#'):
+                        continue
+                    
+                    absolute_url = urljoin(f"{self.BASE_URL}/", href)
+                    if absolute_url.startswith('//'):
+                        absolute_url = f"https:{absolute_url}"
+                    
+                    parsed_url = urlparse(absolute_url)
+                    if parsed_url.netloc.endswith('eksisozluk.com'):
+                        continue
+                    
+                    if absolute_url in seen_urls:
+                        continue
+                    
+                    link_text = link.get_text(strip=True)
+                    url_item = {
+                        'type': 'url',
+                        'url': absolute_url,
+                    }
+                    if link_text:
+                        url_item['text'] = link_text
+                    
+                    fetched_url_content = self._fetch_url_content(absolute_url)
+                    if fetched_url_content:
+                        if link_text and 'text' not in fetched_url_content:
+                            fetched_url_content['text'] = link_text
+                        fetched_url_content.setdefault('url', absolute_url)
+                        url_item.update(fetched_url_content)
+                    
+                    referenced_urls.append(url_item)
+                    seen_urls.add(absolute_url)
+                
+                if referenced_urls:
+                    entry_data.setdefault('referenced_content', [])
+                    entry_data['referenced_content'].extend(referenced_urls)
                 
                 # HTML tag'lerini temizle ama formatı koru
                 for br in content_elem.find_all('br'):
@@ -348,6 +396,70 @@ class EksisozlukScraper:
         
         return None
     
+    def _fetch_url_content(self, url: str) -> Optional[Dict[str, Any]]:
+        """Entry içerisinde paylaşılan URL'lerin içeriğini getirir"""
+        if not url:
+            return None
+        
+        if url in self.url_content_cache:
+            return self.url_content_cache[url]
+        
+        try:
+            response = self.session.get(url, timeout=10, allow_redirects=True)
+            response.raise_for_status()
+            
+            content_type = response.headers.get('Content-Type', '').lower()
+            result: Dict[str, Any] = {'type': 'url'}
+            
+            if 'text/html' in content_type:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                for tag in soup(['script', 'style', 'noscript']):
+                    tag.decompose()
+                
+                title_elem = soup.find('title')
+                if title_elem:
+                    result['title'] = title_elem.get_text(strip=True)
+                
+                body_text = soup.get_text(separator='\n', strip=True)
+                body_text = re.sub(r'\n{3,}', '\n\n', body_text)
+                if len(body_text) > 2000:
+                    body_text = body_text[:2000].rstrip() + '...'
+                result['content'] = body_text
+            
+            elif 'application/json' in content_type:
+                try:
+                    json_data = response.json()
+                    json_text = json.dumps(json_data, ensure_ascii=False, indent=2)
+                except Exception:
+                    json_text = response.text
+                if len(json_text) > 2000:
+                    json_text = json_text[:2000].rstrip() + '...'
+                result['content'] = json_text
+            
+            elif 'text/plain' in content_type or 'text/' in content_type:
+                text_content = response.text.strip()
+                if len(text_content) > 2000:
+                    text_content = text_content[:2000].rstrip() + '...'
+                result['content'] = text_content
+            
+            else:
+                # Desteklenmeyen içerik türleri için bilgi ver
+                truncated_type = content_type.split(';')[0] if content_type else 'bilinmiyor'
+                result['content'] = f"(Desteklenmeyen içerik türü: {truncated_type})"
+            
+            self.url_content_cache[url] = result
+            if self.delay:
+                time.sleep(self.delay)
+            return result
+        
+        except Exception as e:
+            error_result = {
+                'type': 'url',
+                'error': str(e)[:500]
+            }
+            self.url_content_cache[url] = error_result
+            return error_result
+    
     def _fetch_referenced_entries(self, entries: List[Dict]) -> Dict[str, List[Dict]]:
         """Entry'lerdeki referans edilen entry'leri fetch eder ve entry ID'ye göre gruplar
         
@@ -374,6 +486,7 @@ class EksisozlukScraper:
                 if ref_id in main_entries_dict:
                     # Main list'teki entry'nin bir kopyasını ekle
                     referenced_entry_copy = main_entries_dict[ref_id].copy()
+                    referenced_entry_copy.setdefault('type', 'entry')
                     referenced_entries_map[entry_id].append(referenced_entry_copy)
                 # Eğer daha önce scrape edilmediyse fetch et
                 elif ref_id not in self.scraped_entry_ids:
@@ -395,6 +508,7 @@ class EksisozlukScraper:
                         referenced_entries_map[parent_entry_id] = []
                     # Referans edilen entry'nin bir kopyasını ekle
                     referenced_entry_copy = referenced_entry.copy()
+                    referenced_entry_copy.setdefault('type', 'entry')
                     referenced_entries_map[parent_entry_id].append(referenced_entry_copy)
                 
                 time.sleep(self.delay)  # Rate limiting
@@ -560,6 +674,30 @@ class EksisozlukScraper:
                 if referenced_content:
                     f.write("**Referenced Content**:\n\n")
                     for ref_idx, ref_entry in enumerate(referenced_content, 1):
+                        ref_type = ref_entry.get('type', 'entry')
+                        
+                        if ref_type == 'url':
+                            ref_url = ref_entry.get('url', '')
+                            ref_text = ref_entry.get('text', '')
+                            ref_title = ref_entry.get('title', '')
+                            ref_content = ref_entry.get('content', '')
+                            ref_error = ref_entry.get('error', '')
+                            
+                            f.write(f"#### Referenced URL {ref_idx}\n\n")
+                            if ref_text:
+                                f.write(f"- **Text**: {ref_text}\n")
+                            if ref_url:
+                                f.write(f"- **URL**: {ref_url}\n")
+                            if ref_title:
+                                f.write(f"- **Title**: {ref_title}\n")
+                            if ref_content:
+                                f.write("- **Content**:\n\n")
+                                f.write(f"{ref_content}\n")
+                            if ref_error:
+                                f.write(f"- **Error**: {ref_error}\n")
+                            f.write("\n")
+                            continue
+                        
                         ref_entry_id = ref_entry.get('entry_id', '')
                         ref_title = ref_entry.get('title', '')
                         ref_date = ref_entry.get('date', '')
@@ -896,14 +1034,22 @@ class EksisozlukScraper:
         if self.fetch_referenced:
             print(f"Referans edilen entry'ler kontrol ediliyor, biraz bekleyin...", file=sys.stderr)
             referenced_entries_map = self._fetch_referenced_entries(entries)
-            if referenced_entries_map:
-                total_referenced = 0
-                # Her entry'yi kontrol et ve referans edilen entry'leri ekle
-                for entry in entries:
-                    entry_id = entry.get('entry_id')
-                    if entry_id in referenced_entries_map:
-                        entry['referenced_content'] = referenced_entries_map[entry_id]
-                        total_referenced += len(referenced_entries_map[entry_id])
+            total_referenced = 0
+            # Her entry'yi kontrol et ve referans edilen entry'leri ekle
+            for entry in entries:
+                entry_id = entry.get('entry_id')
+                if not entry_id:
+                    continue
+                
+                existing_referenced_content = entry.setdefault('referenced_content', [])
+                
+                if referenced_entries_map and entry_id in referenced_entries_map:
+                    fetched_references = referenced_entries_map[entry_id]
+                    if fetched_references:
+                        existing_referenced_content.extend(fetched_references)
+                        total_referenced += len(fetched_references)
+            
+            if total_referenced > 0:
                 print(f"{total_referenced} referans edilen entry eklendi", file=sys.stderr)
                 # Entry'leri dosyaya yaz (güncellenmiş liste ile)
                 self._write_entries_to_file(entries)
