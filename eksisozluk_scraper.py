@@ -41,7 +41,16 @@ class EksisozlukScraper:
     
     BASE_URL = "https://eksisozluk.com"
     
-    def __init__(self, delay: float = 0.0, max_retries: int = 3, retry_delay: float = 1.0, output_file: Optional[str] = None, max_entries: Optional[int] = None, fetch_referenced: bool = True):
+    def __init__(
+        self,
+        delay: float = 0.0,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        output_file: Optional[str] = None,
+        max_entries: Optional[int] = None,
+        fetch_referenced: bool = True,
+        content_filters: Optional[List[str]] = None
+    ):
         """
         Args:
             delay: Her request arası bekleme süresi (saniye)
@@ -57,6 +66,24 @@ class EksisozlukScraper:
         self.output_file = output_file
         self.max_entries = max_entries
         self.fetch_referenced = fetch_referenced
+        self.entry_filters = [f.strip() for f in (content_filters or []) if isinstance(f, str) and f.strip()]
+        self._filter_groups: List[List[str]] = []
+        for filter_str in self.entry_filters:
+            if not isinstance(filter_str, str):
+                continue
+            parts = filter_str.split('|')
+            normalized_parts = []
+            for part in parts:
+                cleaned = part.strip()
+                if len(cleaned) >= 2 and (
+                    (cleaned.startswith("'") and cleaned.endswith("'")) or
+                    (cleaned.startswith('"') and cleaned.endswith('"'))
+                ):
+                    cleaned = cleaned[1:-1].strip()
+                if cleaned:
+                    normalized_parts.append(cleaned.casefold())
+            if normalized_parts:
+                self._filter_groups.append(normalized_parts)
         self.scrape_start_time = None
         self.scrape_input = None
         self.scrape_time_filter = None
@@ -268,6 +295,36 @@ class EksisozlukScraper:
             print(f"Uyarı: Entry ayrıştırma hatası: {e}", file=sys.stderr)
         
         return None
+    
+    def _entry_matches_filters(self, entry: Dict[str, Any]) -> bool:
+        """Entry'nin içerik filtreleri ile eşleşip eşleşmediğini kontrol eder"""
+        if not self._filter_groups:
+            return True
+        
+        content_parts = [
+            entry.get('content', ''),
+            entry.get('author', ''),
+            entry.get('title', ''),
+            entry.get('date', ''),
+            entry.get('entry_id', ''),
+        ]
+        
+        # Referans içerikleri varsa, onları da filtre eşleşmesine dahil et
+        referenced_content = entry.get('referenced_content', [])
+        if isinstance(referenced_content, list):
+            for ref in referenced_content:
+                if isinstance(ref, dict):
+                    content_parts.extend([
+                        ref.get('content', ''),
+                        ref.get('text', ''),
+                        ref.get('title', ''),
+                    ])
+        
+        haystack = ' '.join(part for part in content_parts if isinstance(part, str)).casefold()
+        for group in self._filter_groups:
+            if not any(token in haystack for token in group):
+                return False
+        return True
     
     def _parse_datetime(self, date_str: str) -> Optional[datetime]:
         """Ekşi Sözlük tarih formatını parse eder"""
@@ -579,7 +636,8 @@ class EksisozlukScraper:
                 'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
                 'total_entries': len(entries),
                 'input': self.scrape_input or '',
-                'time_filter': self.scrape_time_filter
+                'time_filter': self.scrape_time_filter,
+                'filters': self.entry_filters
             },
             'entries': entries
         }
@@ -597,7 +655,8 @@ class EksisozlukScraper:
                 'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
                 'total_entries': len(entries),
                 'input': self.scrape_input or '',
-                'time_filter': self.scrape_time_filter
+                'time_filter': self.scrape_time_filter,
+                'filters': self.entry_filters
             }
             f.write(f"# Scrape Info: {json.dumps(scrape_info, ensure_ascii=False)}\n")
             
@@ -631,13 +690,17 @@ class EksisozlukScraper:
                 'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
                 'total_entries': len(entries),
                 'input': self.scrape_input or '',
-                'time_filter': self.scrape_time_filter
+                'time_filter': self.scrape_time_filter,
+                'filters': self.entry_filters
             }
             f.write(f"- **Timestamp**: {scrape_info['timestamp']}\n")
             f.write(f"- **Total Entries**: {scrape_info['total_entries']}\n")
             f.write(f"- **Input**: {scrape_info['input']}\n")
             if scrape_info['time_filter']:
                 f.write(f"- **Time Filter**: {scrape_info['time_filter']}\n")
+            if scrape_info['filters']:
+                formatted_filters = ', '.join(scrape_info['filters'])
+                f.write(f"- **Filters**: {formatted_filters}\n")
             f.write("\n")
             
             # Entry'leri yaz
@@ -957,15 +1020,16 @@ class EksisozlukScraper:
                         # Entry'nin zaman filtresi içinde olup olmadığını kontrol et
                         entry_age = datetime.now() - entry_dt
                         if entry_age <= time_filter:
-                            # Zaman filtresi içinde, ekle
-                            entry['title'] = title
-                            page_entries.append(entry)
                             all_entries_too_old = False
+                            entry['title'] = title
+                            if self._entry_matches_filters(entry):
+                                page_entries.append(entry)
                         # Eğer entry çok eskiyse, sadece skip et (durma)
                     else:
                         # Zaman filtresi yok, tüm entry'leri ekle
                         entry['title'] = title
-                        page_entries.append(entry)
+                        if self._entry_matches_filters(entry):
+                            page_entries.append(entry)
                         all_entries_too_old = False
             
             entries.extend(page_entries)
@@ -1017,7 +1081,7 @@ class EksisozlukScraper:
             else:
                 # Normal sırada: sonraki sayfaya git
                 # Eğer bu sayfada entry yoksa dur (zaman filtresi yoksa)
-                if not page_entries and not time_filter:
+                if not page_entries and not time_filter and not self.entry_filters:
                     break
                 
                 # Son sayfa numarasından fazla gidebiliyor muyuz kontrol et
@@ -1331,7 +1395,8 @@ class EksisozlukScraper:
                             if entry_id:
                                 self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
-                            entries.append(entry)
+                            if self._entry_matches_filters(entry):
+                                entries.append(entry)
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
                                 entries = entries[:self.max_entries]
@@ -1354,7 +1419,8 @@ class EksisozlukScraper:
                             if entry_id:
                                 self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
-                            entries.append(entry)
+                            if self._entry_matches_filters(entry):
+                                entries.append(entry)
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
                                 entries = entries[:self.max_entries]
@@ -1471,7 +1537,8 @@ class EksisozlukScraper:
                         if entry_id_parsed:
                             self.scraped_entry_ids.add(entry_id_parsed)
                         entry['title'] = title
-                        entries.append(entry)
+                        if self._entry_matches_filters(entry):
+                            entries.append(entry)
                         start_index = i
                         print(f"Başlangıç entry bulundu (sayfa {page})", file=sys.stderr)
                         break
@@ -1487,7 +1554,8 @@ class EksisozlukScraper:
                                 if entry_id_parsed:
                                     self.scraped_entry_ids.add(entry_id_parsed)
                                 entry['title'] = title
-                                entries.append(entry)
+                                if self._entry_matches_filters(entry):
+                                    entries.append(entry)
                                 # Max entries kontrolü
                                 if self.max_entries and len(entries) >= self.max_entries:
                                     entries = entries[:self.max_entries]
@@ -1559,9 +1627,10 @@ class EksisozlukScraper:
                             if entry_id_parsed:
                                 self.scraped_entry_ids.add(entry_id_parsed)
                             entry['title'] = title
-                            page_entries.append(entry)
+                            if self._entry_matches_filters(entry):
+                                page_entries.append(entry)
                     
-                    if not page_entries:
+                    if not page_entries and not self.entry_filters:
                         break
                     
                     entries.extend(page_entries)
@@ -1848,7 +1917,16 @@ def _display_markdown_viewer(markdown_text: str) -> None:
     _markdown_console.print(Markdown(formatted_text), soft_wrap=False)
 
 
-def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, input_str: str = "", custom_prompt: Optional[str] = None, output_file: Optional[str] = None, use_flash: bool = False) -> Optional[str]:
+def _process_gemini_output(
+    entries: List[Dict],
+    mode: Optional[str] = None,
+    input_str: str = "",
+    custom_prompt: Optional[str] = None,
+    output_file: Optional[str] = None,
+    use_flash: bool = False,
+    time_filter: Optional[str] = None,
+    filters: Optional[List[str]] = None,
+) -> Optional[str]:
     """Gemini çıktısını oluşturur, stdout'a yazdırır ve istenirse dosyaya kaydeder
     
     Args:
@@ -1858,6 +1936,8 @@ def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, inpu
         custom_prompt: Özel prompt (verilmişse mode yerine kullanılır)
         output_file: MD dosyası yolu (verilirse dosyaya kaydeder)
         use_flash: Flash modelini kullan (daha hızlı, daha düşük kalite)
+        time_filter: Kullanılan zaman filtresi (varsa)
+        filters: Aktif içerik filtreleri listesi (varsa)
     
     Returns:
         Kaydedilen dosya yolu (eğer kaydedildiyse), None başarısız
@@ -1885,7 +1965,9 @@ def _process_gemini_output(entries: List[Dict], mode: Optional[str] = None, inpu
         'scrape_info': {
             'timestamp': datetime.now().isoformat(),
             'total_entries': len(entries),
-            'input': input_str
+            'input': input_str,
+            'time_filter': time_filter,
+            'filters': filters or []
         },
         'entries': entries
     }
@@ -1943,6 +2025,12 @@ def main():
   # Son 7 günlük, maksimum 50 entry scrape et:
   eksisozluk-scraper "python" --days 7 --max-entries 50
 
+  # İçeriğinde "python" geçen entry'leri filtrele:
+  eksisozluk-scraper "python" --filter python
+
+  # Birden fazla filtre uygula (tümü eşleşmeli):
+  eksisozluk-scraper "python" --filter python --filter django
+
   # Belirli bir entry'den itibaren scrape et:
   eksisozluk-scraper "https://eksisozluk.com/python--123456"
 
@@ -1997,6 +2085,7 @@ def main():
     parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
+    parser.add_argument('--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
     
     # Gemini CLI entegrasyonu grubu
     gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
@@ -2038,8 +2127,13 @@ def main():
         retry_delay=args.retry_delay,
         output_file=args.output,
         max_entries=args.max_entries,
-        fetch_referenced=not args.no_bkz
+        fetch_referenced=not args.no_bkz,
+        content_filters=args.filters
     )
+    
+    if scraper.entry_filters:
+        filters_display = ', '.join(scraper.entry_filters)
+        print(f"İçerik filtreleri aktif: {filters_display}", file=sys.stderr)
     
     # Ctrl+C durumunda dosyayı kaydetmek veya terminale yazmak için signal handler
     def signal_handler(sig, frame):
@@ -2062,7 +2156,8 @@ def main():
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
                         'total_entries': len(sorted_entries),
                         'input': scraper.scrape_input or args.input,
-                        'time_filter': scraper.scrape_time_filter or time_filter_string
+                        'time_filter': scraper.scrape_time_filter or time_filter_string,
+                        'filters': scraper.entry_filters
                     },
                     'entries': sorted_entries
                 }
@@ -2108,7 +2203,8 @@ def main():
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
                         'total_entries': len(sorted_entries),
                         'input': scraper.scrape_input or args.input,
-                        'time_filter': scraper.scrape_time_filter or time_filter_string
+                        'time_filter': scraper.scrape_time_filter or time_filter_string,
+                        'filters': scraper.entry_filters
                     },
                     'entries': sorted_entries
                 }
@@ -2157,7 +2253,9 @@ def main():
             args.input,
             custom_prompt=args.gemini_prompt,
             output_file=gemini_output_file,
-            use_flash=args.flash
+            use_flash=args.flash,
+            time_filter=scraper.scrape_time_filter or time_filter_string,
+            filters=scraper.entry_filters
         )
         
         if gemini_file is None:
@@ -2182,7 +2280,8 @@ def main():
                 'timestamp': datetime.now().isoformat(),
                 'total_entries': len(sorted_entries),
                 'input': args.input,
-                'time_filter': time_filter_string
+                'time_filter': time_filter_string,
+                'filters': scraper.entry_filters
             },
             'entries': sorted_entries
         }

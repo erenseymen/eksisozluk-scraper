@@ -16,5 +16,6 @@ complete -c eksisozluk-scraper -l retry-delay -d "Retry arası bekleme süresi (
 complete -c eksisozluk-scraper -l max-entries -d "Maksimum entry sayısı (varsayılan: sınırsız)" -r
 complete -c eksisozluk-scraper -l output -s o -d "Çıktı dosyası (.json, .csv, .md, .markdown)" -r -f -a "(__fish_complete_suffix .json .csv .md .markdown)"
 complete -c eksisozluk-scraper -l no-bkz -d "Referans edilen entry'leri fetch etme (bkz özelliğini devre dışı bırak)"
+complete -c eksisozluk-scraper -l filter -d "Entry içeriklerinde anahtar kelimeleri filtrele (büyük/küçük harf duyarsız)" -r
 complete -c eksisozluk-scraper -l help -s h -d "Yardım mesajını göster"
 
