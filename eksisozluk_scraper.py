@@ -23,11 +23,16 @@ import shutil
 import textwrap
 import unicodedata
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from urllib.parse import urlparse, parse_qs, urljoin
 
 import cloudscraper
 from bs4 import BeautifulSoup
+
+try:
+    import trafilatura  # type: ignore[import-not-found]
+except ImportError:
+    trafilatura = None  # type: ignore
 
 try:
     from rich.console import Console
@@ -116,6 +121,7 @@ class EksisozlukScraper:
         self.session.headers.update({
             'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         })
+        self.trafilatura_cli = shutil.which('trafilatura')
     
     def _normalize_filter_text(self, text: str) -> str:
         """Filtre karşılaştırması için metni normalize eder (case-insensitive + diakritiksiz)"""
@@ -466,6 +472,164 @@ class EksisozlukScraper:
         
         return None
     
+    def _extract_with_trafilatura(self, html: str, url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """trafilatura ile HTML içeriğinden metin çıkarır"""
+        if trafilatura is None:
+            return self._extract_with_trafilatura_cli(url)
+        
+        try:
+            config = trafilatura.settings.use_config()
+            extracted_json = trafilatura.extract(
+                html,
+                url=url,
+                output_format='json',
+                with_metadata=True,
+                include_comments=False,
+                include_images=False,
+                config=config,
+            )
+            result: Dict[str, Any] = {}
+            parse_error: Optional[str] = None
+            if extracted_json:
+                try:
+                    extracted_data = json.loads(extracted_json)
+                except json.JSONDecodeError:
+                    extracted_data = {}
+                    parse_error = "trafilatura JSON parse edilemedi"
+                
+                if extracted_data:
+                    main_text = (extracted_data.get('text') or '').strip()
+                    if main_text:
+                        if len(main_text) > 2000:
+                            main_text = main_text[:2000].rstrip() + '...'
+                        result['content'] = main_text
+                    
+                    title = extracted_data.get('title') or extracted_data.get('sitename')
+                    if title:
+                        result['title'] = title.strip()
+                    
+                    description = extracted_data.get('description')
+                    if description:
+                        result['summary'] = description.strip()
+                    
+                    author = extracted_data.get('author')
+                    if author:
+                        result['author'] = author
+                    
+                    language = extracted_data.get('language')
+                    if language:
+                        result['language'] = language
+                    
+                    publish_date = extracted_data.get('date')
+                    if publish_date:
+                        result['published_at'] = publish_date
+            
+            if not result:
+                bare_extracted = trafilatura.bare_extraction(
+                    html,
+                    url=url,
+                    no_fallback=False,
+                    include_comments=False,
+                    include_images=False,
+                    favor_precision=False,
+                )
+                if bare_extracted:
+                    main_text = (bare_extracted.get('text') or '').strip()
+                    if main_text:
+                        if len(main_text) > 2000:
+                            main_text = main_text[:2000].rstrip() + '...'
+                        result['content'] = main_text
+                    title = bare_extracted.get('title')
+                    if title:
+                        result.setdefault('title', title.strip())
+                    author = bare_extracted.get('author')
+                    if author:
+                        result.setdefault('author', author)
+                    publish_date = bare_extracted.get('date')
+                    if publish_date:
+                        result.setdefault('published_at', publish_date)
+            
+            if result:
+                return result, parse_error
+            
+            # Python modülü sonuç vermediyse CLI ile dene
+            cli_result, cli_error = self._extract_with_trafilatura_cli(url)
+            warnings = []
+            if parse_error:
+                warnings.append(parse_error)
+            if cli_error:
+                warnings.append(cli_error)
+            aggregated_warning = '; '.join(warnings) if warnings else None
+            return cli_result, aggregated_warning
+        
+        except Exception as exc:
+            cli_result, cli_error = self._extract_with_trafilatura_cli(url)
+            warnings = [str(exc)]
+            if cli_error:
+                warnings.append(cli_error)
+            aggregated_warning = '; '.join(warnings) if warnings else None
+            return cli_result, aggregated_warning
+
+    def _extract_with_trafilatura_cli(self, url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """trafilatura CLI (pipx ile kurulmuş olabilir) üzerinden içerik çıkarır"""
+        if not self.trafilatura_cli:
+            return None, None
+        
+        try:
+            process = subprocess.run(
+                [self.trafilatura_cli, '--json', '--with-metadata', '-u', url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=60
+            )
+        except Exception as exc:
+            return None, f"trafilatura CLI çalıştırılamadı: {exc}"
+        
+        stderr_output = process.stderr.strip()
+        if process.returncode != 0:
+            error_msg = stderr_output or f"trafilatura CLI {process.returncode} kodu ile sonlandı"
+            return None, error_msg
+        
+        stdout = process.stdout.strip()
+        if not stdout:
+            return None, stderr_output or "trafilatura CLI çıktı üretmedi"
+        
+        try:
+            extracted_data = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            return None, f"trafilatura CLI çıktısı JSON parse edilemedi: {exc}"
+        
+        result: Dict[str, Any] = {}
+        
+        main_text = (extracted_data.get('text') or '').strip()
+        if main_text:
+            if len(main_text) > 2000:
+                main_text = main_text[:2000].rstrip() + '...'
+            result['content'] = main_text
+        
+        title = extracted_data.get('title') or extracted_data.get('sitename')
+        if title:
+            result['title'] = title.strip()
+        
+        description = extracted_data.get('description')
+        if description:
+            result['summary'] = description.strip()
+        
+        author = extracted_data.get('author')
+        if author:
+            result['author'] = author
+        
+        language = extracted_data.get('language')
+        if language:
+            result['language'] = language
+        
+        publish_date = extracted_data.get('date')
+        if publish_date:
+            result['published_at'] = publish_date
+        
+        return (result if result else None), (stderr_output or None)
+    
     def _fetch_url_content(self, url: str) -> Optional[Dict[str, Any]]:
         """Entry içerisinde paylaşılan URL'lerin içeriğini getirir"""
         if not url:
@@ -474,27 +638,65 @@ class EksisozlukScraper:
         if url in self.url_content_cache:
             return self.url_content_cache[url]
         
+        result: Dict[str, Any] = {'type': 'url'}
+        extraction_warning: Optional[str] = None
+        
+        # Önce trafilatura ile içerik çıkarmayı dene
+        if trafilatura is not None:
+            try:
+                downloaded_html = trafilatura.fetch_url(url)
+                if downloaded_html:
+                    extracted_data, extraction_warning = self._extract_with_trafilatura(downloaded_html, url)
+                    if extracted_data and extracted_data.get('content'):
+                        result.update(extracted_data)
+                        self.url_content_cache[url] = result
+                        if self.delay:
+                            time.sleep(self.delay)
+                        return result
+            except Exception as exc:
+                extraction_warning = str(exc)
+        elif self.trafilatura_cli:
+            extracted_data, extraction_warning = self._extract_with_trafilatura_cli(url)
+            if extracted_data and extracted_data.get('content'):
+                result.update(extracted_data)
+                self.url_content_cache[url] = result
+                if self.delay:
+                    time.sleep(self.delay)
+                return result
+        
         try:
             response = self.session.get(url, timeout=10, allow_redirects=True)
             response.raise_for_status()
             
             content_type = response.headers.get('Content-Type', '').lower()
-            result: Dict[str, Any] = {'type': 'url'}
             
             if 'text/html' in content_type:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                for tag in soup(['script', 'style', 'noscript']):
-                    tag.decompose()
+                helper_warning: Optional[str] = None
+                extracted_data: Optional[Dict[str, Any]] = None
                 
-                title_elem = soup.find('title')
-                if title_elem:
-                    result['title'] = title_elem.get_text(strip=True)
+                if trafilatura is not None:
+                    extracted_data, helper_warning = self._extract_with_trafilatura(response.text, url)
+                elif self.trafilatura_cli:
+                    extracted_data, helper_warning = self._extract_with_trafilatura_cli(url)
+                    if helper_warning and not extraction_warning:
+                        extraction_warning = helper_warning
+                    if extracted_data and extracted_data.get('content'):
+                        result.update(extracted_data)
                 
-                body_text = soup.get_text(separator='\n', strip=True)
-                body_text = re.sub(r'\n{3,}', '\n\n', body_text)
-                if len(body_text) > 2000:
-                    body_text = body_text[:2000].rstrip() + '...'
-                result['content'] = body_text
+                if 'content' not in result:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    for tag in soup(['script', 'style', 'noscript']):
+                        tag.decompose()
+                    
+                    title_elem = soup.find('title')
+                    if title_elem:
+                        result.setdefault('title', title_elem.get_text(strip=True))
+                    
+                    body_text = soup.get_text(separator='\n', strip=True)
+                    body_text = re.sub(r'\n{3,}', '\n\n', body_text)
+                    if len(body_text) > 2000:
+                        body_text = body_text[:2000].rstrip() + '...'
+                    result['content'] = body_text
             
             elif 'application/json' in content_type:
                 try:
@@ -513,9 +715,11 @@ class EksisozlukScraper:
                 result['content'] = text_content
             
             else:
-                # Desteklenmeyen içerik türleri için bilgi ver
                 truncated_type = content_type.split(';')[0] if content_type else 'bilinmiyor'
                 result['content'] = f"(Desteklenmeyen içerik türü: {truncated_type})"
+            
+            if extraction_warning:
+                result['extraction_warning'] = extraction_warning[:200]
             
             self.url_content_cache[url] = result
             if self.delay:
@@ -523,9 +727,12 @@ class EksisozlukScraper:
             return result
         
         except Exception as e:
+            error_message = str(e)
+            if extraction_warning:
+                error_message = f"{extraction_warning}; fallback_error={error_message}"
             error_result = {
                 'type': 'url',
-                'error': str(e)[:500]
+                'error': error_message[:500]
             }
             self.url_content_cache[url] = error_result
             return error_result

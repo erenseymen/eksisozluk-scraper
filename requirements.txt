@@ -2,3 +2,4 @@ cloudscraper>=1.2.71
 beautifulsoup4>=4.12.0
 argcomplete>=3.0.0
 rich>=13.0.0
+trafilatura>=1.9.0
