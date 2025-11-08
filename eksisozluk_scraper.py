@@ -843,17 +843,44 @@ class EksisozlukScraper:
         else:
             return 'json'
     
+    def _reorder_entry_fields(self, entry: Dict) -> Dict:
+        """Entry dictionary'sini istenen sıraya göre yeniden düzenler: title, entry_id, author, date, content, referenced_content"""
+        # İstenen sıra
+        field_order = ['title', 'entry_id', 'author', 'date', 'content', 'referenced_content']
+        
+        # Yeni dictionary oluştur - önce sıralı alanlar, sonra diğerleri
+        reordered = {}
+        
+        # Önce sıralı alanları ekle
+        for field in field_order:
+            if field in entry:
+                reordered[field] = entry[field]
+        
+        # Sonra diğer tüm alanları ekle (zaten eklenmiş olanları atla)
+        for key, value in entry.items():
+            if key not in reordered:
+                reordered[key] = value
+        
+        return reordered
+    
+    def _reorder_entries(self, entries: List[Dict]) -> List[Dict]:
+        """Entry listesindeki tüm entry'leri yeniden sıralar"""
+        return [self._reorder_entry_fields(entry) for entry in entries]
+    
     def _write_json(self, entries: List[Dict]):
         """Entry'leri JSON formatında yazar"""
+        # Entry'leri yeniden sırala
+        reordered_entries = self._reorder_entries(entries)
+        
         output_data = {
             'scrape_info': {
                 'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
-                'total_entries': len(entries),
+                'total_entries': len(reordered_entries),
                 'input': self.scrape_input or '',
                 'time_filter': self.scrape_time_filter,
                 'filters': self.entry_filters
             },
-            'entries': entries
+            'entries': reordered_entries
         }
         
         with open(self.output_file, 'w', encoding='utf-8') as f:
@@ -861,34 +888,37 @@ class EksisozlukScraper:
     
     def _write_csv(self, entries: List[Dict]):
         """Entry'leri CSV formatında yazar"""
+        # Entry'leri yeniden sırala
+        reordered_entries = self._reorder_entries(entries)
+        
         with open(self.output_file, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             
             # Scrape info'yu yorum olarak yaz
             scrape_info = {
                 'timestamp': (self.scrape_start_time or datetime.now()).isoformat(),
-                'total_entries': len(entries),
+                'total_entries': len(reordered_entries),
                 'input': self.scrape_input or '',
                 'time_filter': self.scrape_time_filter,
                 'filters': self.entry_filters
             }
             f.write(f"# Scrape Info: {json.dumps(scrape_info, ensure_ascii=False)}\n")
             
-            # CSV başlıkları
-            headers = ['entry_id', 'title', 'date', 'author', 'content', 'referenced_content']
+            # CSV başlıkları - istenen sıraya göre
+            headers = ['title', 'entry_id', 'author', 'date', 'content', 'referenced_content']
             writer.writerow(headers)
             
             # Entry'leri yaz
-            for entry in entries:
+            for entry in reordered_entries:
                 # referenced_content'i JSON string olarak serialize et
                 referenced_content = entry.get('referenced_content', [])
                 referenced_content_str = json.dumps(referenced_content, ensure_ascii=False) if referenced_content else ''
                 
                 row = [
-                    entry.get('entry_id', ''),
                     entry.get('title', ''),
-                    entry.get('date', ''),
+                    entry.get('entry_id', ''),
                     entry.get('author', ''),
+                    entry.get('date', ''),
                     entry.get('content', ''),
                     referenced_content_str
                 ]
@@ -2365,19 +2395,21 @@ def main():
             if entries_to_output:
                 # Entry'leri tarihe göre sırala
                 sorted_entries = scraper._sort_entries_by_date(entries_to_output)
+                # Entry'leri yeniden sırala (field order)
+                reordered_entries = scraper._reorder_entries(sorted_entries)
                 output_data = {
                     'scrape_info': {
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
-                        'total_entries': len(sorted_entries),
+                        'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
                         'filters': scraper.entry_filters
                     },
-                    'entries': sorted_entries
+                    'entries': reordered_entries
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print(output_json)
-                print(f"O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
+                print(f"O ana kadar toplanan {len(reordered_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
             else:
                 print("Henüz entry toplanmadı", file=sys.stderr)
         
@@ -2412,19 +2444,21 @@ def main():
             if entries_to_output:
                 # Entry'leri tarihe göre sırala
                 sorted_entries = scraper._sort_entries_by_date(entries_to_output)
+                # Entry'leri yeniden sırala (field order)
+                reordered_entries = scraper._reorder_entries(sorted_entries)
                 output_data = {
                     'scrape_info': {
                         'timestamp': (scraper.scrape_start_time or datetime.now()).isoformat(),
-                        'total_entries': len(sorted_entries),
+                        'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
                         'filters': scraper.entry_filters
                     },
-                    'entries': sorted_entries
+                    'entries': reordered_entries
                 }
                 output_json = json.dumps(output_data, ensure_ascii=False, indent=2)
                 print("\n" + output_json)
-                print(f"O ana kadar toplanan {len(sorted_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
+                print(f"O ana kadar toplanan {len(reordered_entries)} entry terminale yazdırıldı (tarihe göre sıralanmış)", file=sys.stderr)
         
         sys.exit(0)
     
@@ -2441,6 +2475,8 @@ def main():
     if gemini_mode or args.gemini_prompt:
         # Entry'leri tarihe göre sırala
         sorted_entries = scraper._sort_entries_by_date(entries)
+        # Entry'leri yeniden sırala (field order)
+        reordered_entries = scraper._reorder_entries(sorted_entries)
         
         # Eğer -o parametresi kullanıldıysa, Gemini çıktısı için MD dosyası oluştur
         gemini_output_file = None
@@ -2462,7 +2498,7 @@ def main():
         
         # Gemini çıktısını oluştur ve stdout'a yazdır
         gemini_file = _process_gemini_output(
-            sorted_entries,
+            reordered_entries,
             gemini_mode,
             args.input,
             custom_prompt=args.gemini_prompt,
@@ -2489,15 +2525,17 @@ def main():
     if not args.output:
         # Entry'leri tarihe göre sırala
         sorted_entries = scraper._sort_entries_by_date(entries)
+        # Entry'leri yeniden sırala (field order)
+        reordered_entries = scraper._reorder_entries(sorted_entries)
         output_data = {
             'scrape_info': {
                 'timestamp': datetime.now().isoformat(),
-                'total_entries': len(sorted_entries),
+                'total_entries': len(reordered_entries),
                 'input': args.input,
                 'time_filter': time_filter_string,
                 'filters': scraper.entry_filters
             },
-            'entries': sorted_entries
+            'entries': reordered_entries
         }
         
         # JSON olarak çıktı ver
