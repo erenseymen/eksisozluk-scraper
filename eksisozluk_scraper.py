@@ -269,15 +269,29 @@ class EksisozlukScraper:
                         'type': 'url',
                         'url': absolute_url,
                     }
-                    if link_text:
-                        url_item['text'] = link_text
                     
                     fetched_url_content = self._fetch_url_content(absolute_url)
                     if fetched_url_content:
-                        if link_text and 'text' not in fetched_url_content:
-                            fetched_url_content['text'] = link_text
                         fetched_url_content.setdefault('url', absolute_url)
-                        url_item.update(fetched_url_content)
+                        # Reorder fields: type, url, title, author, date, content
+                        reordered_item = {
+                            'type': fetched_url_content.get('type', 'url'),
+                            'url': fetched_url_content.get('url', absolute_url),
+                        }
+                        if 'title' in fetched_url_content:
+                            reordered_item['title'] = fetched_url_content['title']
+                        if 'author' in fetched_url_content:
+                            reordered_item['author'] = fetched_url_content['author']
+                        if 'date' in fetched_url_content:
+                            reordered_item['date'] = fetched_url_content['date']
+                        if 'content' in fetched_url_content:
+                            reordered_item['content'] = fetched_url_content['content']
+                        url_item = reordered_item
+                    else:
+                        url_item = {
+                            'type': 'url',
+                            'url': absolute_url,
+                        }
                     
                     referenced_urls.append(url_item)
                     seen_urls.add(absolute_url)
@@ -520,7 +534,7 @@ class EksisozlukScraper:
                     
                     publish_date = extracted_data.get('date')
                     if publish_date:
-                        result['published_at'] = publish_date
+                        result['date'] = publish_date
             
             if not result:
                 bare_extracted = trafilatura.bare_extraction(
@@ -543,7 +557,7 @@ class EksisozlukScraper:
                         result.setdefault('author', author)
                     publish_date = bare_extracted.get('date')
                     if publish_date:
-                        result.setdefault('published_at', publish_date)
+                        result.setdefault('date', publish_date)
             
             if result:
                 return result, parse_error
@@ -620,7 +634,7 @@ class EksisozlukScraper:
         
         publish_date = extracted_data.get('date')
         if publish_date:
-            result['published_at'] = publish_date
+            result['date'] = publish_date
         
         return (result if result else None), (stderr_output or None)
     
