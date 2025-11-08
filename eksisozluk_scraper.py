@@ -55,6 +55,7 @@ class EksisozlukScraper:
     """Ekşi Sözlük scraper sınıfı"""
     
     BASE_URL = "https://eksisozluk.com"
+    STRUCTURAL_NEWLINE_TOKEN = "__EKSISOZ_NEWLINE__"
     FILTER_CHAR_TRANSLATION = str.maketrans({
         'ı': 'i',
         'ş': 's',
@@ -140,6 +141,59 @@ class EksisozlukScraper:
         normalized = unicodedata.normalize('NFKD', casefolded)
         stripped = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
         return stripped.translate(self.FILTER_CHAR_TRANSLATION)
+    
+    def _normalize_entry_content(self, text: str, newline_token: Optional[str] = None) -> str:
+        """Entry metnindeki gereksiz satır sonlarını ve boşlukları temizler"""
+        if not text:
+            return ''
+        
+        marker = None
+        if newline_token:
+            marker = "__EKSISOZ_NEWLINE_MARKER__"
+            text = text.replace(newline_token, marker)
+        
+        normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+        # Satır sonlarının etrafındaki boşlukları temizle
+        normalized = re.sub(r'[ \t]*\n[ \t]*', '\n', normalized)
+        # Tekli satır sonlarını (paragraf olmayan) boşlukla değiştir
+        normalized = re.sub(r'(?<=\S)\n(?=\S)', ' ', normalized)
+        # Çoklu satır sonlarını en fazla ikiye düşür
+        normalized = re.sub(r'\n{3,}', '\n\n', normalized)
+        # Birden fazla boşluğu tek boşluğa indir
+        normalized = re.sub(r'[ \t]{2,}', ' ', normalized)
+        # Satır sonlarında kalan boşlukları temizle
+        normalized = re.sub(r' *\n', '\n', normalized)
+        normalized = re.sub(r'\n *', '\n', normalized)
+        # Parantez ve noktalama öncesindeki boşlukları temizle
+        normalized = re.sub(r'\( ', '(', normalized)
+        normalized = re.sub(r' \)', ')', normalized)
+        normalized = re.sub(r' (?=[,:;!?])', '', normalized)
+        normalized = re.sub(r' (?=[\'’])', '', normalized)
+        
+        if marker:
+            normalized = normalized.replace(marker, newline_token)
+        
+        return normalized.strip()
+    
+    def _format_referenced_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """referenced_content listesi için alanları istenen sıraya göre düzenler"""
+        if not isinstance(entry, dict):
+            return entry
+        
+        entry_type = entry.get('type', 'entry')
+        formatted: Dict[str, Any] = {'type': entry_type}
+        
+        ordered_keys = ['title', 'entry_id', 'author', 'date', 'content']
+        for key in ordered_keys:
+            if key in entry:
+                formatted[key] = entry[key]
+        
+        for key, value in entry.items():
+            if key == 'type' or key in ordered_keys:
+                continue
+            formatted[key] = value
+        
+        return formatted
     
     def _make_request(self, url: str):
         """HTTP request yapar, retry mekanizması ile"""
@@ -307,14 +361,59 @@ class EksisozlukScraper:
                 
                 if referenced_urls:
                     entry_data.setdefault('referenced_content', [])
-                    entry_data['referenced_content'].extend(referenced_urls)
+                    formatted_urls = [
+                        self._format_referenced_entry(url_item)
+                        for url_item in referenced_urls
+                    ]
+                    entry_data['referenced_content'].extend(formatted_urls)
                 
                 # HTML tag'lerini temizle ama formatı koru
+                # Gizli açıklamaları (ör: * işaretli) içeriğe dahil et
+                for sup in content_elem.find_all('sup'):
+                    classes = sup.get('class') or []
+                    if 'ab' not in classes:
+                        continue
+                    
+                    tooltip_text = ''
+                    anchor = sup.find('a')
+                    if anchor:
+                        tooltip_text = (
+                            anchor.get('title') or
+                            anchor.get('data-title') or
+                            anchor.get('aria-label') or
+                            anchor.get_text(strip=True)
+                        )
+                    else:
+                        tooltip_text = (
+                            sup.get('title') or
+                            sup.get('data-title') or
+                            sup.get('aria-label') or
+                            sup.get_text(strip=True)
+                        )
+                    
+                    if tooltip_text:
+                        tooltip_text = tooltip_text.strip()
+                        if tooltip_text.startswith('('):
+                            replacement_text = f" {tooltip_text}"
+                        else:
+                            replacement_text = f" ({tooltip_text})"
+                    else:
+                        replacement_text = ''
+                    
+                    sup.replace_with(replacement_text)
+                
                 for br in content_elem.find_all('br'):
-                    br.replace_with('\n')
+                    br.replace_with(self.STRUCTURAL_NEWLINE_TOKEN)
                 for p in content_elem.find_all('p'):
-                    p.append('\n')
-                entry_data['content'] = content_elem.get_text(separator='\n', strip=True)
+                    p.append(self.STRUCTURAL_NEWLINE_TOKEN)
+                raw_content = content_elem.get_text(separator='\n', strip=True)
+                normalized_content = self._normalize_entry_content(
+                    raw_content,
+                    newline_token=self.STRUCTURAL_NEWLINE_TOKEN
+                )
+                final_content = normalized_content.replace(self.STRUCTURAL_NEWLINE_TOKEN, '\n')
+                final_content = re.sub(r'[ \t]*\n[ \t]*', '\n', final_content)
+                entry_data['content'] = final_content
             
             # Fav sayısı
             fav_elem = (entry_element.find('span', {'class': 'fav-count'}) or
@@ -916,7 +1015,8 @@ class EksisozlukScraper:
                     # Main list'teki entry'nin bir kopyasını ekle
                     referenced_entry_copy = main_entries_dict[ref_id].copy()
                     referenced_entry_copy.setdefault('type', 'entry')
-                    referenced_entries_map[entry_id].append(referenced_entry_copy)
+                    formatted_entry = self._format_referenced_entry(referenced_entry_copy)
+                    referenced_entries_map[entry_id].append(formatted_entry)
                 # Eğer daha önce scrape edilmediyse fetch et
                 elif ref_id not in self.scraped_entry_ids:
                     if ref_id not in entries_to_fetch:
@@ -938,7 +1038,8 @@ class EksisozlukScraper:
                     # Referans edilen entry'nin bir kopyasını ekle
                     referenced_entry_copy = referenced_entry.copy()
                     referenced_entry_copy.setdefault('type', 'entry')
-                    referenced_entries_map[parent_entry_id].append(referenced_entry_copy)
+                    formatted_entry = self._format_referenced_entry(referenced_entry_copy)
+                    referenced_entries_map[parent_entry_id].append(formatted_entry)
                 
                 time.sleep(self.delay)  # Rate limiting
         
