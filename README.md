@@ -98,6 +98,13 @@ eksisozluk-scraper "başlık adı" --filter python --filter asyncio
 eksisozluk-scraper "titanic" --filter film --filter "aşk|gemi"
 ```
 
+### URL Bazlı Filtreleme
+
+```bash
+# Yalnızca Ekşi Sözlük dışına ait bağlantı içeren entry'leri getir
+eksisozluk-scraper "başlık adı" --filter-urls
+```
+
 ### Belirli Entry'den İtibaren Scrape Etme
 
 ```bash

@@ -76,7 +76,8 @@ class EksisozlukScraper:
         output_file: Optional[str] = None,
         max_entries: Optional[int] = None,
         fetch_referenced: bool = True,
-        content_filters: Optional[List[str]] = None
+        content_filters: Optional[List[str]] = None,
+        filter_external_urls: bool = False,
     ):
         """
         Args:
@@ -86,6 +87,8 @@ class EksisozlukScraper:
             output_file: Entry'lerin yazılacağı JSON dosyası yolu (opsiyonel)
             max_entries: Maksimum entry sayısı (opsiyonel, None ise sınırsız)
             fetch_referenced: Referans edilen entry'leri fetch et (varsayılan: True)
+            content_filters: Entry içeriklerini metin bazlı filtrelemek için anahtar kelimeler listesi
+            filter_external_urls: Yalnızca Ekşi Sözlük dışı URL içeren entry'leri dahil et
         """
         self.delay = delay
         self.max_retries = max_retries
@@ -93,6 +96,7 @@ class EksisozlukScraper:
         self.output_file = output_file
         self.max_entries = max_entries
         self.fetch_referenced = fetch_referenced
+        self.filter_external_urls = filter_external_urls
         self.entry_filters = [f.strip() for f in (content_filters or []) if isinstance(f, str) and f.strip()]
         self._filter_groups: List[List[str]] = []
         for filter_str in self.entry_filters:
@@ -277,6 +281,10 @@ class EksisozlukScraper:
                            entry_element.find('div', {'class': 'entry-content'}))
             
             if content_elem:
+                referenced_urls = []
+                seen_urls = set()
+                has_external_url = False
+                
                 if self.fetch_referenced:
                     # Referans edilen entry ID'lerini bul (bkz linklerinden)
                     referenced_entry_ids = []
@@ -302,71 +310,70 @@ class EksisozlukScraper:
                     referenced_entry_ids = list(set(referenced_entry_ids))
                     if referenced_entry_ids:
                         entry_data['referenced_entry_ids'] = referenced_entry_ids  # İç kullanım için - sonra kaldırılacak
+                
+                # Entry içindeki harici URL'leri topla
+                all_links = content_elem.find_all('a', href=True)
+                for link in all_links:
+                    href = link.get('href', '').strip()
+                    if not href:
+                        continue
+                    # Entry referanslarını atla (onlar ayrı handle edilecek)
+                    if re.search(r'(?:/entry/|entry--)\d+', href):
+                        continue
+                    if href.startswith('#'):
+                        continue
                     
-                    # Entry içindeki harici URL'leri topla
-                    referenced_urls = []
-                    seen_urls = set()
-                    all_links = content_elem.find_all('a', href=True)
-                    for link in all_links:
-                        href = link.get('href', '').strip()
-                        if not href:
-                            continue
-                        # Entry referanslarını atla (onlar ayrı handle edilecek)
-                        if re.search(r'(?:/entry/|entry--)\d+', href):
-                            continue
-                        if href.startswith('#'):
-                            continue
-                        
-                        absolute_url = urljoin(f"{self.BASE_URL}/", href)
-                        if absolute_url.startswith('//'):
-                            absolute_url = f"https:{absolute_url}"
-                        
-                        parsed_url = urlparse(absolute_url)
-                        if parsed_url.netloc.endswith('eksisozluk.com'):
-                            continue
-                        
-                        if absolute_url in seen_urls:
-                            continue
-                        
-                        link_text = link.get_text(strip=True)
+                    absolute_url = urljoin(f"{self.BASE_URL}/", href)
+                    if absolute_url.startswith('//'):
+                        absolute_url = f"https:{absolute_url}"
+                    
+                    parsed_url = urlparse(absolute_url)
+                    if parsed_url.netloc.endswith('eksisozluk.com'):
+                        continue
+                    
+                    has_external_url = True
+                    
+                    if not self.fetch_referenced:
+                        continue
+                    
+                    if absolute_url in seen_urls:
+                        continue
+                    
+                    fetched_url_content = self._fetch_url_content(absolute_url)
+                    if fetched_url_content:
+                        fetched_url_content.setdefault('url', absolute_url)
+                        # Reorder fields: type, url, title, author, date, content
+                        reordered_item = {
+                            'type': fetched_url_content.get('type', 'url'),
+                            'url': fetched_url_content.get('url', absolute_url),
+                        }
+                        if 'title' in fetched_url_content:
+                            reordered_item['title'] = fetched_url_content['title']
+                        if 'author' in fetched_url_content:
+                            reordered_item['author'] = fetched_url_content['author']
+                        if 'date' in fetched_url_content:
+                            reordered_item['date'] = fetched_url_content['date']
+                        if 'content' in fetched_url_content:
+                            reordered_item['content'] = fetched_url_content['content']
+                        url_item = reordered_item
+                    else:
                         url_item = {
                             'type': 'url',
                             'url': absolute_url,
                         }
-                        
-                        fetched_url_content = self._fetch_url_content(absolute_url)
-                        if fetched_url_content:
-                            fetched_url_content.setdefault('url', absolute_url)
-                            # Reorder fields: type, url, title, author, date, content
-                            reordered_item = {
-                                'type': fetched_url_content.get('type', 'url'),
-                                'url': fetched_url_content.get('url', absolute_url),
-                            }
-                            if 'title' in fetched_url_content:
-                                reordered_item['title'] = fetched_url_content['title']
-                            if 'author' in fetched_url_content:
-                                reordered_item['author'] = fetched_url_content['author']
-                            if 'date' in fetched_url_content:
-                                reordered_item['date'] = fetched_url_content['date']
-                            if 'content' in fetched_url_content:
-                                reordered_item['content'] = fetched_url_content['content']
-                            url_item = reordered_item
-                        else:
-                            url_item = {
-                                'type': 'url',
-                                'url': absolute_url,
-                            }
-                        
-                        referenced_urls.append(url_item)
-                        seen_urls.add(absolute_url)
                     
-                    if referenced_urls:
-                        entry_data.setdefault('referenced_content', [])
-                        formatted_urls = [
-                            self._format_referenced_entry(url_item)
-                            for url_item in referenced_urls
-                        ]
-                        entry_data['referenced_content'].extend(formatted_urls)
+                    referenced_urls.append(url_item)
+                    seen_urls.add(absolute_url)
+                
+                entry_data['has_external_url'] = has_external_url
+                
+                if self.fetch_referenced and referenced_urls:
+                    entry_data.setdefault('referenced_content', [])
+                    formatted_urls = [
+                        self._format_referenced_entry(url_item)
+                        for url_item in referenced_urls
+                    ]
+                    entry_data['referenced_content'].extend(formatted_urls)
                 
                 # HTML tag'lerini temizle ama formatı koru
                 # Gizli açıklamaları (ör: * işaretli) içeriğe dahil et
@@ -450,22 +457,24 @@ class EksisozlukScraper:
     
     def _entry_matches_filters(self, entry: Dict[str, Any]) -> bool:
         """Entry'nin içerik filtreleri ile eşleşip eşleşmediğini kontrol eder"""
-        if not self._filter_groups:
-            return True
+        if self._filter_groups:
+            content_parts = [
+                entry.get('content', ''),
+                entry.get('author', ''),
+                entry.get('title', ''),
+                entry.get('date', ''),
+                entry.get('entry_id', ''),
+            ]
+            
+            haystack_raw = ' '.join(part for part in content_parts if isinstance(part, str))
+            haystack = self._normalize_filter_text(haystack_raw)
+            for group in self._filter_groups:
+                if not any(token in haystack for token in group):
+                    return False
         
-        content_parts = [
-            entry.get('content', ''),
-            entry.get('author', ''),
-            entry.get('title', ''),
-            entry.get('date', ''),
-            entry.get('entry_id', ''),
-        ]
+        if self.filter_external_urls and not entry.get('has_external_url'):
+            return False
         
-        haystack_raw = ' '.join(part for part in content_parts if isinstance(part, str))
-        haystack = self._normalize_filter_text(haystack_raw)
-        for group in self._filter_groups:
-            if not any(token in haystack for token in group):
-                return False
         return True
     
     def _parse_datetime(self, date_str: str) -> Optional[datetime]:
@@ -1138,7 +1147,8 @@ class EksisozlukScraper:
                 'total_entries': len(reordered_entries),
                 'input': self.scrape_input or '',
                 'time_filter': self.scrape_time_filter,
-                'filters': self.entry_filters
+            'filters': self.entry_filters,
+            'filter_external_urls': self.filter_external_urls
             },
             'entries': reordered_entries
         }
@@ -1591,7 +1601,12 @@ class EksisozlukScraper:
             else:
                 # Normal sırada: sonraki sayfaya git
                 # Eğer bu sayfada entry yoksa dur (zaman filtresi yoksa)
-                if not page_entries and not time_filter and not self.entry_filters:
+                if (
+                    not page_entries
+                    and not time_filter
+                    and not self.entry_filters
+                    and not self.filter_external_urls
+                ):
                     break
                 
                 # Son sayfa numarasından fazla gidebiliyor muyuz kontrol et
@@ -2436,6 +2451,7 @@ def _process_gemini_output(
     use_flash: bool = False,
     time_filter: Optional[str] = None,
     filters: Optional[List[str]] = None,
+    filter_external_urls: bool = False,
 ) -> Optional[str]:
     """Gemini çıktısını oluşturur, stdout'a yazdırır ve istenirse dosyaya kaydeder
     
@@ -2448,6 +2464,7 @@ def _process_gemini_output(
         use_flash: Flash modelini kullan (daha hızlı, daha düşük kalite)
         time_filter: Kullanılan zaman filtresi (varsa)
         filters: Aktif içerik filtreleri listesi (varsa)
+        filter_external_urls: Yalnızca Ekşi Sözlük dışı linklerin bulunduğu entry'lerin dahil edilip edilmediği
     
     Returns:
         Kaydedilen dosya yolu (eğer kaydedildiyse), None başarısız
@@ -2477,7 +2494,8 @@ def _process_gemini_output(
             'total_entries': len(entries),
             'input': input_str,
             'time_filter': time_filter,
-            'filters': filters or []
+            'filters': filters or [],
+            'filter_external_urls': filter_external_urls
         },
         'entries': entries
     }
@@ -2596,6 +2614,7 @@ def main():
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
     parser.add_argument('--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
+    parser.add_argument('--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
     
     # Gemini CLI entegrasyonu grubu
     gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
@@ -2638,12 +2657,15 @@ def main():
         output_file=args.output,
         max_entries=args.max_entries,
         fetch_referenced=not args.no_bkz,
-        content_filters=args.filters
+        content_filters=args.filters,
+        filter_external_urls=args.filter_urls
     )
     
     if scraper.entry_filters:
         filters_display = ', '.join(scraper.entry_filters)
         print(f"İçerik filtreleri aktif: {filters_display}", file=sys.stderr)
+    if scraper.filter_external_urls:
+        print("URL filtresi aktif: Yalnızca Ekşi Sözlük dışına ait link içeren entry'ler getirilecek", file=sys.stderr)
     
     # Ctrl+C durumunda dosyayı kaydetmek veya terminale yazmak için signal handler
     def signal_handler(sig, frame):
@@ -2669,7 +2691,8 @@ def main():
                         'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
-                        'filters': scraper.entry_filters
+                    'filters': scraper.entry_filters,
+                    'filter_external_urls': scraper.filter_external_urls
                     },
                     'entries': reordered_entries
                 }
@@ -2718,7 +2741,8 @@ def main():
                         'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
-                        'filters': scraper.entry_filters
+                    'filters': scraper.entry_filters,
+                    'filter_external_urls': scraper.filter_external_urls
                     },
                     'entries': reordered_entries
                 }
@@ -2771,7 +2795,8 @@ def main():
             output_file=gemini_output_file,
             use_flash=args.flash,
             time_filter=scraper.scrape_time_filter or time_filter_string,
-            filters=scraper.entry_filters
+            filters=scraper.entry_filters,
+            filter_external_urls=scraper.filter_external_urls
         )
         
         if gemini_file is None:
@@ -2799,7 +2824,8 @@ def main():
                 'total_entries': len(reordered_entries),
                 'input': args.input,
                 'time_filter': time_filter_string,
-                'filters': scraper.entry_filters
+            'filters': scraper.entry_filters,
+            'filter_external_urls': scraper.filter_external_urls
             },
             'entries': reordered_entries
         }
