@@ -1434,6 +1434,12 @@ class EksisozlukScraper:
                             page_entries.append(entry)
                         all_entries_too_old = False
             
+            if reverse_order and page_entries:
+                page_entries.sort(
+                    key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min,
+                    reverse=True,
+                )
+            
             entries.extend(page_entries)
             print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
             
