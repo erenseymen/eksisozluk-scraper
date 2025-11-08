@@ -35,6 +35,15 @@ except ImportError:
     trafilatura = None  # type: ignore
 
 try:
+    from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore[import-not-found]
+    from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable  # type: ignore[import-not-found]
+except ImportError:
+    YouTubeTranscriptApi = None  # type: ignore
+    TranscriptsDisabled = None  # type: ignore
+    NoTranscriptFound = None  # type: ignore
+    VideoUnavailable = None  # type: ignore
+
+try:
     from rich.console import Console
     from rich.markdown import Markdown
 except ImportError:
@@ -638,6 +647,101 @@ class EksisozlukScraper:
         
         return (result if result else None), (stderr_output or None)
     
+    def _extract_youtube_video_id(self, url: str) -> Optional[str]:
+        """YouTube URL'inden video ID'sini çıkarır"""
+        if not url:
+            return None
+        
+        # YouTube URL pattern'leri
+        patterns = [
+            r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})',
+            r'youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        
+        return None
+    
+    def _fetch_youtube_transcript(self, video_id: str) -> Optional[str]:
+        """YouTube video transkriptini çeker"""
+        if YouTubeTranscriptApi is None:
+            return None
+        
+        try:
+            # Yeni API: YouTubeTranscriptApi instance oluştur ve list() metodunu kullan
+            api = YouTubeTranscriptApi()
+            transcript_list = api.list(video_id)
+            transcript_data = None
+            
+            # Öncelik sırasına göre transkript dene
+            # 1. Türkçe manuel transkript
+            try:
+                transcript = transcript_list.find_manually_created_transcript(['tr', 'tr-TR'])
+                transcript_data = transcript.fetch()
+            except Exception:
+                pass
+            
+            # 2. Türkçe otomatik transkript
+            if transcript_data is None:
+                try:
+                    transcript = transcript_list.find_generated_transcript(['tr', 'tr-TR'])
+                    transcript_data = transcript.fetch()
+                except Exception:
+                    pass
+            
+            # 3. İngilizce manuel transkript
+            if transcript_data is None:
+                try:
+                    transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'en-GB'])
+                    transcript_data = transcript.fetch()
+                except Exception:
+                    pass
+            
+            # 4. İngilizce otomatik transkript
+            if transcript_data is None:
+                try:
+                    transcript = transcript_list.find_generated_transcript(['en', 'en-US', 'en-GB'])
+                    transcript_data = transcript.fetch()
+                except Exception:
+                    pass
+            
+            # 5. Herhangi bir manuel transkript
+            if transcript_data is None:
+                try:
+                    for transcript in transcript_list:
+                        if not transcript.is_generated:
+                            transcript_data = transcript.fetch()
+                            break
+                except Exception:
+                    pass
+            
+            # 6. Herhangi bir transkript (manuel veya otomatik)
+            if transcript_data is None:
+                try:
+                    for transcript in transcript_list:
+                        transcript_data = transcript.fetch()
+                        break
+                except Exception:
+                    pass
+            
+            # Transkript verilerini metin olarak birleştir
+            # Yeni API: item['text'] yerine item.text kullan (FetchedTranscriptSnippet objesi)
+            if transcript_data:
+                transcript_text = ' '.join([item.text for item in transcript_data])
+                return transcript_text.strip()
+            
+            return None
+            
+        except Exception as e:
+            # VideoUnavailable veya diğer hatalar için None döndür
+            if VideoUnavailable is not None and isinstance(e, VideoUnavailable):
+                return None
+            # Diğer hatalar için de None döndür
+            return None
+    
     def _fetch_url_content(self, url: str) -> Optional[Dict[str, Any]]:
         """Entry içerisinde paylaşılan URL'lerin içeriğini getirir"""
         if not url:
@@ -648,6 +752,46 @@ class EksisozlukScraper:
         
         result: Dict[str, Any] = {'type': 'url'}
         extraction_warning: Optional[str] = None
+        
+        # YouTube URL'i kontrolü - önce transkript çekmeyi dene
+        video_id = self._extract_youtube_video_id(url)
+        if video_id:
+            transcript = self._fetch_youtube_transcript(video_id)
+            result['type'] = 'youtube'
+            result['url'] = url
+            result['video_id'] = video_id
+            
+            if transcript:
+                result['content'] = transcript
+            else:
+                result['content'] = '(Transkript mevcut değil veya alınamadı)'
+            
+            # Video başlığını almak için YouTube sayfasını çekmeyi dene
+            try:
+                response = self.session.get(url, timeout=10, allow_redirects=True)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    # Önce title tag'ini dene
+                    title_elem = soup.find('title')
+                    if title_elem:
+                        title = title_elem.get_text(strip=True)
+                        # " - YouTube" kısmını kaldır
+                        if title.endswith(' - YouTube'):
+                            title = title[:-10].strip()
+                        if title and title != 'YouTube':
+                            result['title'] = title
+                    # Title bulunamazsa meta og:title'ı dene
+                    if 'title' not in result:
+                        meta_title = soup.find('meta', property='og:title')
+                        if meta_title and meta_title.get('content'):
+                            result['title'] = meta_title.get('content').strip()
+            except Exception:
+                pass  # Başlık alınamazsa devam et
+            
+            self.url_content_cache[url] = result
+            if self.delay:
+                time.sleep(self.delay)
+            return result
         
         # Önce trafilatura ile içerik çıkarmayı dene
         if trafilatura is not None:
