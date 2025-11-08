@@ -78,6 +78,7 @@ class EksisozlukScraper:
         fetch_referenced: bool = True,
         content_filters: Optional[List[str]] = None,
         filter_external_urls: bool = False,
+        reverse: bool = False,
     ):
         """
         Args:
@@ -89,6 +90,7 @@ class EksisozlukScraper:
             fetch_referenced: Referans edilen entry'leri fetch et (varsayılan: True)
             content_filters: Entry içeriklerini metin bazlı filtrelemek için anahtar kelimeler listesi
             filter_external_urls: Yalnızca Ekşi Sözlük dışı URL içeren entry'leri dahil et
+            reverse: Entry'leri ters sırada (son sayfadan başlayarak) tarar
         """
         self.delay = delay
         self.max_retries = max_retries
@@ -97,6 +99,7 @@ class EksisozlukScraper:
         self.max_entries = max_entries
         self.fetch_referenced = fetch_referenced
         self.filter_external_urls = filter_external_urls
+        self.reverse = reverse
         self.entry_filters = [f.strip() for f in (content_filters or []) if isinstance(f, str) and f.strip()]
         self._filter_groups: List[List[str]] = []
         for filter_str in self.entry_filters:
@@ -1370,9 +1373,12 @@ class EksisozlukScraper:
         
         print(f"Başlık taranıyor: {title}", file=sys.stderr)
         
-        # Eğer zaman filtresi varsa, son sayfadan başlayıp geriye doğru gideceğiz
-        reverse_order = False
+        # Kullanıcı ters sıralama isterse veya zaman filtresi aktifse son sayfadan başlayabiliriz
+        reverse_order = self.reverse
         last_page = None  # Son sayfa numarası
+        
+        if self.reverse:
+            print("Ters sıralı tarama modu aktif: Entry'ler son sayfadan başlayarak indirilecek", file=sys.stderr)
         
         while True:
             # Başlık URL'i oluştur
@@ -1473,15 +1479,24 @@ class EksisozlukScraper:
                 if last_page:
                     print(f"Son sayfa numarası: {last_page}", file=sys.stderr)
                     
-                    # Zaman filtresi varsa son sayfadan başla
-                    if time_filter:
+                    # Zaman filtresi veya ters sıralama isteği varsa son sayfadan başla
+                    if time_filter or reverse_order:
                         page = last_page
                         reverse_order = True
-                        print(f"Son sayfadan başlayıp geriye doğru taranıyor (sayfa {last_page}'den başlıyor)", file=sys.stderr)
+                        reasons = []
+                        if time_filter:
+                            reasons.append("zaman filtresi aktif")
+                        if self.reverse:
+                            reasons.append("ters sıralı tarama seçildi")
+                        reason_text = f" ({', '.join(reasons)})" if reasons else ""
+                        print(f"Son sayfadan başlayıp geriye doğru taranıyor{reason_text} (başlangıç sayfası {last_page})", file=sys.stderr)
                         # İlk sayfayı atla, direkt son sayfaya git
                         continue
                 else:
                     print(f"Uyarı: Son sayfa bulunamadı", file=sys.stderr)
+                    if self.reverse:
+                        print("Bilgi: Ters sıralı tarama devre dışı bırakıldı (son sayfa bulunamadı)", file=sys.stderr)
+                        reverse_order = False
             
             # Entry'leri bul - çoklu selector stratejisi (önce entry'leri bul, sonra kontrol et)
             # ÖNEMLİ: Ekşi Sözlük'te entry'ler ul#entry-item-list içinde
@@ -1647,13 +1662,17 @@ class EksisozlukScraper:
         for entry in entries:
             entry.pop('referenced_entry_ids', None)
         
-        # Eğer son sayfadan başlanarak alındıysa ve output dosyası belirtilmişse, entry'leri tarihe göre sırala
+        # Eğer son sayfadan başlanarak alındıysa ve output dosyası belirtilmişse, gerekirse tekrar yaz
         if reverse_order and self.output_file:
-            print(f"Entry'ler tarihe göre sıralanıyor, biraz bekleyin...", file=sys.stderr)
-            entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
-            # Sıralanmış entry'leri dosyaya yaz
-            self._write_entries_to_file(entries)
-            print(f"Entry'ler tarihe göre sıralandı ve dosyaya yazıldı, işlem tamamlandı", file=sys.stderr)
+            if self.reverse:
+                print("Ters sıralı tarama tamamlandı, sonuçlar son entry'den başlayarak kaydedildi", file=sys.stderr)
+                self._write_entries_to_file(entries)
+            else:
+                print(f"Entry'ler tarihe göre sıralanıyor, biraz bekleyin...", file=sys.stderr)
+                entries.sort(key=lambda e: self._parse_datetime(e.get('date', '')) or datetime.min, reverse=False)
+                # Sıralanmış entry'leri dosyaya yaz
+                self._write_entries_to_file(entries)
+                print(f"Entry'ler tarihe göre sıralandı ve dosyaya yazıldı, işlem tamamlandı", file=sys.stderr)
         
         return entries
     
@@ -2615,6 +2634,7 @@ def main():
     parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
     parser.add_argument('--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
     parser.add_argument('--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
+    parser.add_argument('-r', '--reverse', action='store_true', help='Entry\'leri ters sırada (son sayfadan başlayarak) tarar')
     
     # Gemini CLI entegrasyonu grubu
     gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
@@ -2658,7 +2678,8 @@ def main():
         max_entries=args.max_entries,
         fetch_referenced=not args.no_bkz,
         content_filters=args.filters,
-        filter_external_urls=args.filter_urls
+        filter_external_urls=args.filter_urls,
+        reverse=args.reverse,
     )
     
     if scraper.entry_filters:
