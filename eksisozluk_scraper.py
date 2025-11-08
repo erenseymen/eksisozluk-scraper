@@ -277,95 +277,96 @@ class EksisozlukScraper:
                            entry_element.find('div', {'class': 'entry-content'}))
             
             if content_elem:
-                # Referans edilen entry ID'lerini bul (bkz linklerinden)
-                referenced_entry_ids = []
-                # Entry linklerini bul - href'te /entry/ veya entry-- olan linkler
-                entry_links = content_elem.find_all('a', href=re.compile(r'(?:/entry/|entry--)\d+'))
-                for link in entry_links:
-                    href = link.get('href', '')
-                    # /entry/123456 formatı
-                    entry_match = re.search(r'/entry/(\d+)', href)
-                    if entry_match:
-                        ref_entry_id = entry_match.group(1)
-                        if ref_entry_id != entry_id:  # Kendi kendine referans değilse
-                            referenced_entry_ids.append(ref_entry_id)
-                    else:
-                        # entry--123456 formatı
-                        entry_match = re.search(r'entry--(\d+)', href)
+                if self.fetch_referenced:
+                    # Referans edilen entry ID'lerini bul (bkz linklerinden)
+                    referenced_entry_ids = []
+                    # Entry linklerini bul - href'te /entry/ veya entry-- olan linkler
+                    entry_links = content_elem.find_all('a', href=re.compile(r'(?:/entry/|entry--)\d+'))
+                    for link in entry_links:
+                        href = link.get('href', '')
+                        # /entry/123456 formatı
+                        entry_match = re.search(r'/entry/(\d+)', href)
                         if entry_match:
                             ref_entry_id = entry_match.group(1)
                             if ref_entry_id != entry_id:  # Kendi kendine referans değilse
                                 referenced_entry_ids.append(ref_entry_id)
-                
-                # Tekrarları kaldır
-                referenced_entry_ids = list(set(referenced_entry_ids))
-                if referenced_entry_ids:
-                    entry_data['referenced_entry_ids'] = referenced_entry_ids  # İç kullanım için - sonra kaldırılacak
-                
-                # Entry içindeki harici URL'leri topla
-                referenced_urls = []
-                seen_urls = set()
-                all_links = content_elem.find_all('a', href=True)
-                for link in all_links:
-                    href = link.get('href', '').strip()
-                    if not href:
-                        continue
-                    # Entry referanslarını atla (onlar ayrı handle edilecek)
-                    if re.search(r'(?:/entry/|entry--)\d+', href):
-                        continue
-                    if href.startswith('#'):
-                        continue
+                        else:
+                            # entry--123456 formatı
+                            entry_match = re.search(r'entry--(\d+)', href)
+                            if entry_match:
+                                ref_entry_id = entry_match.group(1)
+                                if ref_entry_id != entry_id:  # Kendi kendine referans değilse
+                                    referenced_entry_ids.append(ref_entry_id)
                     
-                    absolute_url = urljoin(f"{self.BASE_URL}/", href)
-                    if absolute_url.startswith('//'):
-                        absolute_url = f"https:{absolute_url}"
+                    # Tekrarları kaldır
+                    referenced_entry_ids = list(set(referenced_entry_ids))
+                    if referenced_entry_ids:
+                        entry_data['referenced_entry_ids'] = referenced_entry_ids  # İç kullanım için - sonra kaldırılacak
                     
-                    parsed_url = urlparse(absolute_url)
-                    if parsed_url.netloc.endswith('eksisozluk.com'):
-                        continue
-                    
-                    if absolute_url in seen_urls:
-                        continue
-                    
-                    link_text = link.get_text(strip=True)
-                    url_item = {
-                        'type': 'url',
-                        'url': absolute_url,
-                    }
-                    
-                    fetched_url_content = self._fetch_url_content(absolute_url)
-                    if fetched_url_content:
-                        fetched_url_content.setdefault('url', absolute_url)
-                        # Reorder fields: type, url, title, author, date, content
-                        reordered_item = {
-                            'type': fetched_url_content.get('type', 'url'),
-                            'url': fetched_url_content.get('url', absolute_url),
-                        }
-                        if 'title' in fetched_url_content:
-                            reordered_item['title'] = fetched_url_content['title']
-                        if 'author' in fetched_url_content:
-                            reordered_item['author'] = fetched_url_content['author']
-                        if 'date' in fetched_url_content:
-                            reordered_item['date'] = fetched_url_content['date']
-                        if 'content' in fetched_url_content:
-                            reordered_item['content'] = fetched_url_content['content']
-                        url_item = reordered_item
-                    else:
+                    # Entry içindeki harici URL'leri topla
+                    referenced_urls = []
+                    seen_urls = set()
+                    all_links = content_elem.find_all('a', href=True)
+                    for link in all_links:
+                        href = link.get('href', '').strip()
+                        if not href:
+                            continue
+                        # Entry referanslarını atla (onlar ayrı handle edilecek)
+                        if re.search(r'(?:/entry/|entry--)\d+', href):
+                            continue
+                        if href.startswith('#'):
+                            continue
+                        
+                        absolute_url = urljoin(f"{self.BASE_URL}/", href)
+                        if absolute_url.startswith('//'):
+                            absolute_url = f"https:{absolute_url}"
+                        
+                        parsed_url = urlparse(absolute_url)
+                        if parsed_url.netloc.endswith('eksisozluk.com'):
+                            continue
+                        
+                        if absolute_url in seen_urls:
+                            continue
+                        
+                        link_text = link.get_text(strip=True)
                         url_item = {
                             'type': 'url',
                             'url': absolute_url,
                         }
+                        
+                        fetched_url_content = self._fetch_url_content(absolute_url)
+                        if fetched_url_content:
+                            fetched_url_content.setdefault('url', absolute_url)
+                            # Reorder fields: type, url, title, author, date, content
+                            reordered_item = {
+                                'type': fetched_url_content.get('type', 'url'),
+                                'url': fetched_url_content.get('url', absolute_url),
+                            }
+                            if 'title' in fetched_url_content:
+                                reordered_item['title'] = fetched_url_content['title']
+                            if 'author' in fetched_url_content:
+                                reordered_item['author'] = fetched_url_content['author']
+                            if 'date' in fetched_url_content:
+                                reordered_item['date'] = fetched_url_content['date']
+                            if 'content' in fetched_url_content:
+                                reordered_item['content'] = fetched_url_content['content']
+                            url_item = reordered_item
+                        else:
+                            url_item = {
+                                'type': 'url',
+                                'url': absolute_url,
+                            }
+                        
+                        referenced_urls.append(url_item)
+                        seen_urls.add(absolute_url)
                     
-                    referenced_urls.append(url_item)
-                    seen_urls.add(absolute_url)
-                
-                if referenced_urls:
-                    entry_data.setdefault('referenced_content', [])
-                    formatted_urls = [
-                        self._format_referenced_entry(url_item)
-                        for url_item in referenced_urls
-                    ]
-                    entry_data['referenced_content'].extend(formatted_urls)
+                    if referenced_urls:
+                        entry_data.setdefault('referenced_content', [])
+                        formatted_urls = [
+                            self._format_referenced_entry(url_item)
+                            for url_item in referenced_urls
+                        ]
+                        entry_data['referenced_content'].extend(formatted_urls)
                 
                 # HTML tag'lerini temizle ama formatı koru
                 # Gizli açıklamaları (ör: * işaretli) içeriğe dahil et
