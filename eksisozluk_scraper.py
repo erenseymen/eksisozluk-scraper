@@ -500,8 +500,6 @@ class EksisozlukScraper:
                 if extracted_data:
                     main_text = (extracted_data.get('text') or '').strip()
                     if main_text:
-                        if len(main_text) > 2000:
-                            main_text = main_text[:2000].rstrip() + '...'
                         result['content'] = main_text
                     
                     title = extracted_data.get('title') or extracted_data.get('sitename')
@@ -536,8 +534,6 @@ class EksisozlukScraper:
                 if bare_extracted:
                     main_text = (bare_extracted.get('text') or '').strip()
                     if main_text:
-                        if len(main_text) > 2000:
-                            main_text = main_text[:2000].rstrip() + '...'
                         result['content'] = main_text
                     title = bare_extracted.get('title')
                     if title:
@@ -604,8 +600,6 @@ class EksisozlukScraper:
         
         main_text = (extracted_data.get('text') or '').strip()
         if main_text:
-            if len(main_text) > 2000:
-                main_text = main_text[:2000].rstrip() + '...'
             result['content'] = main_text
         
         title = extracted_data.get('title') or extracted_data.get('sitename')
