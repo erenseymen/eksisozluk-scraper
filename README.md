@@ -157,8 +157,8 @@ eksisozluk-scraper "başlık adı" --no-bkz
 ### Çıktıyı Başka Komutlara Pipe Etme
 
 ```bash
-# Çıktıyı Gemini'ye pipe ederek özetleme
-eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
+# Çıktıyı jq ile filtreleyip sadece entry metnini gösterme
+eksisozluk-scraper "the beatles" --years 1 | jq '.entries[] | {content}'
 ```
 
 ## Gemini CLI entegrasyonu
