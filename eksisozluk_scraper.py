@@ -32,6 +32,11 @@ from bs4 import BeautifulSoup
 CLI_DATE_INPUT_EXAMPLE = "YYYY.MM.DD veya YYYY.MM.DD-HH:MM"
 
 
+class CompactHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
+    """Kısa ama açıklayıcı CLI yardım çıktısı için formatter."""
+    pass
+
+
 def _parse_cli_datetime(value: str) -> datetime:
     """Argparse için 'YYYY.MM.DD[-HH:MM]' formatında tarih/zaman ayrıştırır."""
     if not value:
@@ -2740,109 +2745,38 @@ def _process_gemini_output(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper. Desteklenen çıktı formatları: JSON (varsayılan), CSV (.csv), Markdown (.md, .markdown). Format dosya uzantısından otomatik tespit edilir.',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Örnekler:
-  # Başlıktaki tüm entry'leri scrape et:
-  eksisozluk-scraper "python"
-
-  # Son 1 günlük entry'leri scrape et:
-  eksisozluk-scraper "python" --days 1
-
-  # Son 1 haftalık entry'leri scrape et:
-  eksisozluk-scraper "python" --weeks 1
-
-  # Son 1 aylık entry'leri scrape et:
-  eksisozluk-scraper "python" --months 1
-
-  # Son 1 yıllık entry'leri scrape et:
-  eksisozluk-scraper "python" --years 1
-
-  # Maksimum 100 entry scrape et:
-  eksisozluk-scraper "python" --max-entries 100
-
-  # Son 7 günlük, maksimum 50 entry scrape et:
-  eksisozluk-scraper "python" --days 7 --max-entries 50
-
-  # İçeriğinde "python" geçen entry'leri filtrele:
-  eksisozluk-scraper "python" --filter python
-
-  # Birden fazla filtre uygula (tümü eşleşmeli):
-  eksisozluk-scraper "python" --filter python --filter django
-
-  # Belirli bir entry'den itibaren scrape et:
-  eksisozluk-scraper "https://eksisozluk.com/python--123456"
-
-  # Belirli bir tarih aralığındaki entry'leri scrape et:
-  eksisozluk-scraper "python" --start 2024.01.01 --end 2024.01.31
-
-  # Farklı çıktı formatları:
-  eksisozluk-scraper "python" --output sonuclar.json  # JSON formatı
-  eksisozluk-scraper "python" --output sonuclar.csv    # CSV formatı
-  eksisozluk-scraper "python" --output sonuclar.md     # Markdown formatı
-
-  # Özel parametreler:
-  eksisozluk-scraper "python" --delay 2.0 --max-retries 5
-
-  # Çıktıyı başka komutlara pipe etme:
-  eksisozluk-scraper "the beatles" --years 1 | gemini -p "entry'leri özetle"
-
-  # *Gemini CLI entegrasyonu* (Gemini CLI kurmak için: https://geminicli.com)
-
-  # Gemini CLI ile özet oluştur (stdout'a yazdırır):
-  eksisozluk-scraper "the beatles" --ozet
-
-  # Gemini CLI ile blog yazısı oluştur (stdout'a yazdırır):
-  eksisozluk-scraper "the beatles" --blog
-
-  # Özel prompt ile Gemini çıktısı oluştur:
-  eksisozluk-scraper "the beatles" --prompt "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et"
-
-  # Gemini özet oluştur ve dosyalara kaydet:
-  eksisozluk-scraper "the beatles" --ozet -o beatles.json
-  # → beatles.json (JSON) ve beatles.md (Gemini özet) oluşturulur
-
-  # Gemini blog yazısı oluştur ve dosyalara kaydet:
-  eksisozluk-scraper "the beatles" --blog -o beatles.json
-  # → beatles.json (JSON) ve beatles.md (Gemini blog) oluşturulur
-
-  # Özel prompt ile çıktı oluştur ve kaydet:
-  eksisozluk-scraper "the beatles" -p "Türk kullanıcıların The Beatles hakkındaki görüşlerini analiz et" -o result.json
-  # → result.json (JSON) ve result.md (Gemini çıktı) oluşturulur
-
-  # Son 1 yıllık entry'leri özetle ve dosyaya kaydet:
-  eksisozluk-scraper "the beatles" --years 1 --ozet -o beatles-2024.json
-        """
+        description='Ekşi Sözlük Scraper: başlık veya entry URL\'sinden JSON/CSV/Markdown çıktı üretir.',
+        formatter_class=CompactHelpFormatter,
+        epilog='Daha fazla örnek: https://github.com/erenseymen/eksisozluk-scraper#readme'
     )
     
     parser.add_argument('input', nargs='?', help='Başlık adı veya entry URL\'si')
-    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}', help='Program versiyonunu göster ve çık')
-    parser.add_argument('-d', '--days', type=int, help='Son N günlük entry\'leri scrape et')
-    parser.add_argument('-w', '--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
-    parser.add_argument('-m', '--months', type=int, help='Son N aylık entry\'leri scrape et')
-    parser.add_argument('-y', '--years', type=int, help='Son N yıllık entry\'leri scrape et')
+    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}', help='Versiyonu göster ve çık')
+    parser.add_argument('-d', '--days', type=int, help='Son N günü tara')
+    parser.add_argument('-w', '--weeks', type=int, help='Son N haftayı tara')
+    parser.add_argument('-m', '--months', type=int, help='Son N ayı tara')
+    parser.add_argument('-y', '--years', type=int, help='Son N yılı tara')
     parser.add_argument('-s', '--start', dest='start_datetime', type=_parse_cli_datetime,
-                        help=f"Belirli bir başlangıç tarihinden itibaren entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
+                        help=f"Başlangıç tarihini ayarla ({CLI_DATE_INPUT_EXAMPLE})")
     parser.add_argument('-e', '--end', dest='end_datetime', type=_parse_cli_datetime,
-                        help=f"Belirli bir bitiş tarihine kadar entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
-    parser.add_argument('-D', '--delay', type=float, default=0.0, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 0.0)')
-    parser.add_argument('-R', '--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
-    parser.add_argument('-T', '--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
-    parser.add_argument('-n', '--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
-    parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
-    parser.add_argument('-B', '--no-bkz', action='store_true', help='Referans edilen entry\'leri dahil etme (bkz bağlantılarını devre dışı bırak)')
-    parser.add_argument('--fetch', action='store_true', help='Harici URL içeriklerini ve YouTube transkriptlerini getir (varsayılan: devre dışı)')
-    parser.add_argument('-f', '--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
-    parser.add_argument('-u', '--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
-    parser.add_argument('-r', '--reverse', action='store_true', help='Entry\'leri ters sırada (son sayfadan başlayarak) tarar')
+                        help=f"Bitiş tarihini ayarla ({CLI_DATE_INPUT_EXAMPLE})")
+    parser.add_argument('-D', '--delay', type=float, default=0.0, help='İstekler arası bekleme (s)')
+    parser.add_argument('-R', '--max-retries', type=int, default=3, help='Maksimum tekrar denemesi')
+    parser.add_argument('-T', '--retry-delay', type=float, default=1.0, help='Denemeler arası bekleme (s)')
+    parser.add_argument('-n', '--max-entries', type=int, help='Toplanacak maksimum entry')
+    parser.add_argument('--output', '-o', help='Çıktı dosyası (.json/.csv/.md); yoksa stdout')
+    parser.add_argument('-B', '--no-bkz', action='store_true', help='Referans edilen entry\'leri atla')
+    parser.add_argument('--fetch', action='store_true', help='Harici içerikleri indir (URL ve YouTube)')
+    parser.add_argument('-f', '--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriğini kelimeye göre filtrele (tekrar edilebilir)')
+    parser.add_argument('-u', '--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca harici URL içeren entry\'ler')
+    parser.add_argument('-r', '--reverse', action='store_true', help='Sayfaları tersten tara')
     
     # Gemini CLI entegrasyonu grubu
-    gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
-    gemini_group.add_argument('-z', '--ozet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
-    gemini_group.add_argument('-b', '--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
-    gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
-    gemini_group.add_argument('-F', '--flash', dest='flash', action='store_true', help='Gemini CLI\'de flash modelini kullan (daha hızlı, daha düşük kalite)')
+    gemini_group = parser.add_argument_group('Gemini CLI', 'AI destekli çıktı seçenekleri (geminicli.com)')
+    gemini_group.add_argument('-z', '--ozet', dest='gemini_summary', action='store_true', help='Gemini ile özet üret')
+    gemini_group.add_argument('-b', '--blog', dest='gemini_blog', action='store_true', help='Gemini ile blog üret')
+    gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini\'ye özel prompt gönder')
+    gemini_group.add_argument('-F', '--flash', dest='flash', action='store_true', help='Gemini flash modelini kullan')
     
     # Enable tab completion if argcomplete is available
     if argcomplete:
