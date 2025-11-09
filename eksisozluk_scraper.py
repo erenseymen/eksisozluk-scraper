@@ -2828,30 +2828,30 @@ def main():
     
     parser.add_argument('input', nargs='?', help='Başlık adı veya entry URL\'si')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}', help='Program versiyonunu göster ve çık')
-    parser.add_argument('--days', type=int, help='Son N günlük entry\'leri scrape et')
-    parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
-    parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
-    parser.add_argument('--years', type=int, help='Son N yıllık entry\'leri scrape et')
-    parser.add_argument('--start', dest='start_datetime', type=_parse_cli_datetime,
+    parser.add_argument('-d', '--days', type=int, help='Son N günlük entry\'leri scrape et')
+    parser.add_argument('-w', '--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
+    parser.add_argument('-m', '--months', type=int, help='Son N aylık entry\'leri scrape et')
+    parser.add_argument('-y', '--years', type=int, help='Son N yıllık entry\'leri scrape et')
+    parser.add_argument('-s', '--start', dest='start_datetime', type=_parse_cli_datetime,
                         help=f"Belirli bir başlangıç tarihinden itibaren entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
-    parser.add_argument('--end', dest='end_datetime', type=_parse_cli_datetime,
+    parser.add_argument('-e', '--end', dest='end_datetime', type=_parse_cli_datetime,
                         help=f"Belirli bir bitiş tarihine kadar entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
-    parser.add_argument('--delay', type=float, default=0.0, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 0.0)')
-    parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
-    parser.add_argument('--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
-    parser.add_argument('--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
+    parser.add_argument('-D', '--delay', type=float, default=0.0, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 0.0)')
+    parser.add_argument('-R', '--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
+    parser.add_argument('-T', '--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
+    parser.add_argument('-n', '--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
-    parser.add_argument('--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
-    parser.add_argument('--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
-    parser.add_argument('--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
+    parser.add_argument('-B', '--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
+    parser.add_argument('-f', '--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
+    parser.add_argument('-u', '--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
     parser.add_argument('-r', '--reverse', action='store_true', help='Entry\'leri ters sırada (son sayfadan başlayarak) tarar')
     
     # Gemini CLI entegrasyonu grubu
     gemini_group = parser.add_argument_group('Gemini CLI entegrasyonu', 'Gemini CLI ile AI destekli çıktı oluşturma seçenekleri')
-    gemini_group.add_argument('--ozet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
-    gemini_group.add_argument('--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('-z', '--ozet', dest='gemini_summary', action='store_true', help='Gemini CLI ile özet oluştur ve stdout\'a yazdır')
+    gemini_group.add_argument('-b', '--blog', dest='gemini_blog', action='store_true', help='Gemini CLI ile blog yazısı oluştur ve stdout\'a yazdır')
     gemini_group.add_argument('--prompt', '-p', dest='gemini_prompt', help='Gemini CLI ile özel prompt kullanarak çıktı oluştur ve stdout\'a yazdır')
-    gemini_group.add_argument('--flash', dest='flash', action='store_true', help='Gemini CLI\'de flash modelini kullan (daha hızlı, daha düşük kalite)')
+    gemini_group.add_argument('-F', '--flash', dest='flash', action='store_true', help='Gemini CLI\'de flash modelini kullan (daha hızlı, daha düşük kalite)')
     
     # Enable tab completion if argcomplete is available
     if argcomplete:
