@@ -1421,8 +1421,8 @@ class EksisozlukScraper:
         
         print(f"Başlık taranıyor: {title}", file=sys.stderr)
         
-        # Kullanıcı ters sıralama isterse veya zaman filtresi aktifse son sayfadan başlayabiliriz
-        reverse_order = self.reverse
+        # Kullanıcı ters sıralama isterse veya relativ zaman filtresi aktifse son sayfadan başlayabiliriz
+        reverse_order = self.reverse and not absolute_filter_active
         last_page = None  # Son sayfa numarası
         
         if self.reverse:
@@ -1528,16 +1528,14 @@ class EksisozlukScraper:
                     print(f"Son sayfa numarası: {last_page}", file=sys.stderr)
                     
                     # Zaman filtresi veya ters sıralama isteği varsa son sayfadan başla
-                    if time_filter or reverse_order or absolute_filter_active:
+                    if time_filter or reverse_order:
                         page = last_page
                         reverse_order = True
                         reasons = []
                         if time_filter:
                             reasons.append("zaman filtresi aktif")
-                        if self.reverse:
+                        if self.reverse and not absolute_filter_active:
                             reasons.append("ters sıralı tarama seçildi")
-                        if absolute_filter_active:
-                            reasons.append("özelleştirilmiş tarih aralığı kullanılıyor")
                         reason_text = f" ({', '.join(reasons)})" if reasons else ""
                         print(f"Son sayfadan başlayıp geriye doğru taranıyor{reason_text} (başlangıç sayfası {last_page})", file=sys.stderr)
                         # İlk sayfayı atla, direkt son sayfaya git
