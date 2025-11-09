@@ -2813,6 +2813,17 @@ def main():
         time_filter = timedelta(days=args.years * 365)  # 1 yıl = 365 gün
         time_filter_string = f"{args.years} years"
     
+    # Gemini istemi istendiğinde CLI kontrolü (entry indirme öncesinde)
+    gemini_requested = any([
+        bool(args.gemini_summary),
+        bool(args.gemini_blog),
+        args.gemini_prompt is not None,
+    ])
+    if gemini_requested and not _check_gemini_cli():
+        print("Hata: Gemini CLI bulunamadı. Gemini özelliklerini kullanmak için 'gemini' komutunu kurmalısınız.", file=sys.stderr)
+        print("Kurulum için talimatlar: https://geminicli.com/ adresini ziyaret edin.", file=sys.stderr)
+        sys.exit(1)
+
     # Scraper oluştur
     scraper = EksisozlukScraper(
         delay=args.delay,
