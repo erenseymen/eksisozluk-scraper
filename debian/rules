@@ -28,6 +28,10 @@ override_dh_auto_install:
 	mkdir -p debian/eksisozluk-scraper/usr/share/fish/vendor_completions.d
 	cp completions/eksisozluk-scraper.fish debian/eksisozluk-scraper/usr/share/fish/vendor_completions.d/eksisozluk-scraper.fish || true
 	
+	# Install zsh completion
+	mkdir -p debian/eksisozluk-scraper/usr/share/zsh/site-functions
+	cp completions/_eksisozluk-scraper debian/eksisozluk-scraper/usr/share/zsh/site-functions/_eksisozluk-scraper || true
+	
 	# Compile Python bytecode
 	dh_python3 || true
 

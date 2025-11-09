@@ -83,8 +83,12 @@ package() {
       > "$pkgdir/usr/share/bash-completion/completions/eksisozluk-scraper" 2>/dev/null || true
   fi
   
-  # Generate zsh completion using argcomplete
+  # Install zsh completion (fallback)
   install -d "$pkgdir/usr/share/zsh/site-functions"
+  install -m644 completions/_eksisozluk-scraper \
+    "$pkgdir/usr/share/zsh/site-functions/_eksisozluk-scraper" 2>/dev/null || true
+  
+  # Generate zsh completion using argcomplete
   if [ -f "$pkgdir/usr/bin/eksisozluk-scraper" ]; then
     PYTHONPATH="$pkgdir/usr/lib/python${_python_version}/site-packages" \
     PATH="$pkgdir/usr/bin:$PATH" \

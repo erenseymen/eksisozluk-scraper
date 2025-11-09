@@ -9,7 +9,7 @@ _eksisozluk_scraper() {
     words=("${COMP_WORDS[@]}")
 
     # Options
-    local opts="--days --weeks --months --years --delay --max-retries --retry-delay --max-entries --output -o --no-bkz --filter --help -h"
+    local opts="-h --help -v --version -d --days -w --weeks -m --months -y --years -s --start -e --end -D --delay -R --max-retries -T --retry-delay -n --max-entries -o --output -B --no-bkz -f --filter -u --filter-urls -r --reverse -z --ozet -b --blog -p --prompt -F --flash"
     
     # File completion for --output
     if [[ "$prev" == "--output" ]] || [[ "$prev" == "-o" ]]; then
@@ -18,14 +18,30 @@ _eksisozluk_scraper() {
     fi
     
     # Number completion for numeric options
-    if [[ "$prev" == "--days" ]] || [[ "$prev" == "--weeks" ]] || \
-       [[ "$prev" == "--months" ]] || [[ "$prev" == "--years" ]] || \
-       [[ "$prev" == "--max-entries" ]] || [[ "$prev" == "--max-retries" ]]; then
+    if [[ "$prev" == "--days" ]] || [[ "$prev" == "-d" ]] || \
+       [[ "$prev" == "--weeks" ]] || [[ "$prev" == "-w" ]] || \
+       [[ "$prev" == "--months" ]] || [[ "$prev" == "-m" ]] || \
+       [[ "$prev" == "--years" ]] || [[ "$prev" == "-y" ]] || \
+       [[ "$prev" == "--max-entries" ]] || [[ "$prev" == "-n" ]] || \
+       [[ "$prev" == "--max-retries" ]] || [[ "$prev" == "-R" ]]; then
         return 0
     fi
     
     # Float completion for delay options
-    if [[ "$prev" == "--delay" ]] || [[ "$prev" == "--retry-delay" ]]; then
+    if [[ "$prev" == "--delay" ]] || [[ "$prev" == "-D" ]] || \
+       [[ "$prev" == "--retry-delay" ]] || [[ "$prev" == "-T" ]]; then
+        return 0
+    fi
+
+    # Date input for start/end options
+    if [[ "$prev" == "--start" ]] || [[ "$prev" == "-s" ]] || \
+       [[ "$prev" == "--end" ]] || [[ "$prev" == "-e" ]]; then
+        return 0
+    fi
+
+    # String input for prompt/filter options
+    if [[ "$prev" == "--prompt" ]] || [[ "$prev" == "-p" ]] || \
+       [[ "$prev" == "--filter" ]] || [[ "$prev" == "-f" ]]; then
         return 0
     fi
     

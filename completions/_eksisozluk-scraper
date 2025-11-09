@@ -1,0 +1,27 @@
+#compdef eksisozluk-scraper
+
+_arguments -s \
+  '(-h --help)'{-h,--help}'[Yardım mesajını göster]' \
+  '(-v --version)'{-v,--version}'[Program versiyonunu göster ve çık]' \
+  '(-d --days)'{-d,--days}"[Son N günlük entry'leri scrape et]:days:" \
+  '(-w --weeks)'{-w,--weeks}"[Son N haftalık entry'leri scrape et]:weeks:" \
+  '(-m --months)'{-m,--months}"[Son N aylık entry'leri scrape et]:months:" \
+  '(-y --years)'{-y,--years}"[Son N yıllık entry'leri scrape et]:years:" \
+  '(-s --start)'{-s,--start}"[Belirli bir başlangıç tarihinden itibaren entry'leri dahil et (YYYY.MM.DD)]:start date:" \
+  '(-e --end)'{-e,--end}"[Belirli bir bitiş tarihine kadar entry'leri dahil et (YYYY.MM.DD)]:end date:" \
+  '(-D --delay)'{-D,--delay}"[Request'ler arası bekleme süresi (saniye, varsayılan: 0.0)]:delay (seconds):" \
+  '(-R --max-retries)'{-R,--max-retries}"[Maksimum tekrar deneme sayısı (varsayılan: 3)]:retries:" \
+  '(-T --retry-delay)'{-T,--retry-delay}"[Retry arası bekleme süresi (saniye, varsayılan: 1.0)]:retry delay (seconds):" \
+  '(-n --max-entries)'{-n,--max-entries}"[Maksimum entry sayısı (varsayılan: sınırsız)]:max entries:" \
+  '(-o --output)'{-o,--output}"[Çıktı dosyası (uzantıya göre format tespit edilir)]:output file:_files -g \"*.json *.csv *.md *.markdown\"" \
+  '(-B --no-bkz)'{-B,--no-bkz}"[Referans edilen entry'leri fetch etme (bkz özelliğini devre dışı bırak)]" \
+  '*'{-f,--filter}"[Entry içeriklerinde anahtar kelimeleri filtrele (birden fazla olabilir)]:anahtar kelime:" \
+  '(-u --filter-urls)'{-u,--filter-urls}"[Yalnızca Ekşi Sözlük dışı URL içeren entry'leri getir]" \
+  '(-r --reverse)'{-r,--reverse}"[Entry'leri ters sırada tara (son sayfadan başla)]" \
+  '(-z --ozet)'{-z,--ozet}"[Gemini CLI ile özet oluştur ve stdout'a yazdır]" \
+  '(-b --blog)'{-b,--blog}"[Gemini CLI ile blog yazısı oluştur ve stdout'a yazdır]" \
+  '(-p --prompt)'{-p,--prompt}"[Gemini CLI ile özel prompt kullanarak çıktı oluştur]:prompt:" \
+  '(-F --flash)'{-F,--flash}"[Gemini CLI'de flash modelini kullan]" \
+  "1:input (başlık adı veya entry URL'si):" \
+  '*::filename:_files'
+
