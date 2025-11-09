@@ -320,7 +320,7 @@ class EksisozlukScraper:
                            entry_element.find('div', {'class': 'entry-content'}))
             
             if content_elem:
-                referenced_urls = []
+                pending_external_urls = []
                 seen_urls = set()
                 has_external_url = False
                 
@@ -378,41 +378,21 @@ class EksisozlukScraper:
                     if absolute_url in seen_urls:
                         continue
                     
-                    fetched_url_content = self._fetch_url_content(absolute_url)
-                    if fetched_url_content:
-                        fetched_url_content.setdefault('url', absolute_url)
-                        # Reorder fields: type, url, title, author, date, content
-                        reordered_item = {
-                            'type': fetched_url_content.get('type', 'url'),
-                            'url': fetched_url_content.get('url', absolute_url),
-                        }
-                        if 'title' in fetched_url_content:
-                            reordered_item['title'] = fetched_url_content['title']
-                        if 'author' in fetched_url_content:
-                            reordered_item['author'] = fetched_url_content['author']
-                        if 'date' in fetched_url_content:
-                            reordered_item['date'] = fetched_url_content['date']
-                        if 'content' in fetched_url_content:
-                            reordered_item['content'] = fetched_url_content['content']
-                        url_item = reordered_item
-                    else:
-                        url_item = {
-                            'type': 'url',
-                            'url': absolute_url,
-                        }
+                    link_text = link.get_text(strip=True)
+                    url_item = {
+                        'type': 'url',
+                        'url': absolute_url,
+                    }
+                    if link_text:
+                        url_item['text'] = link_text
                     
-                    referenced_urls.append(url_item)
+                    pending_external_urls.append(url_item)
                     seen_urls.add(absolute_url)
                 
                 entry_data['has_external_url'] = has_external_url
                 
-                if self.fetch_referenced and referenced_urls:
-                    entry_data.setdefault('referenced_content', [])
-                    formatted_urls = [
-                        self._format_referenced_entry(url_item)
-                        for url_item in referenced_urls
-                    ]
-                    entry_data['referenced_content'].extend(formatted_urls)
+                if self.fetch_referenced and pending_external_urls:
+                    entry_data['_pending_external_urls'] = pending_external_urls
                 
                 # HTML tag'lerini temizle ama formatı koru
                 # Gizli açıklamaları (ör: * işaretli) içeriğe dahil et
@@ -1037,6 +1017,42 @@ class EksisozlukScraper:
             self.url_content_cache[url] = error_result
             return error_result
     
+    def _populate_entry_referenced_content(self, entry: Dict[str, Any]) -> None:
+        """Entry için ertelenmiş URL içeriklerini fetch eder ve referenced_content'e ekler"""
+        pending_urls = entry.pop('_pending_external_urls', None)
+        
+        if not pending_urls:
+            return
+        
+        if not self.fetch_referenced:
+            return
+        
+        referenced_content = entry.setdefault('referenced_content', [])
+        
+        for pending in pending_urls:
+            if not isinstance(pending, dict):
+                continue
+            
+            url = pending.get('url')
+            if not url:
+                continue
+            
+            fetched = self._fetch_url_content(url)
+            if fetched:
+                merged = dict(fetched)
+            else:
+                merged = {'type': 'url'}
+            
+            merged.setdefault('url', url)
+            
+            for key, value in pending.items():
+                if key in merged:
+                    continue
+                merged[key] = value
+            
+            formatted = self._format_referenced_entry(merged)
+            referenced_content.append(formatted)
+    
     def _fetch_referenced_entries(self, entries: List[Dict]) -> Dict[str, List[Dict]]:
         """Entry'lerdeki referans edilen entry'leri fetch eder ve entry ID'ye göre gruplar
         
@@ -1615,6 +1631,7 @@ class EksisozlukScraper:
                     if include_entry:
                         entry['title'] = title
                         if self._entry_matches_filters(entry):
+                            self._populate_entry_referenced_content(entry)
                             page_entries.append(entry)
                         else:
                             # Filtrelere takılsa bile zaman aralığında bir entry bulunduğunu not et
@@ -2018,6 +2035,7 @@ class EksisozlukScraper:
                                 self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
                             if self._entry_matches_filters(entry):
+                                self._populate_entry_referenced_content(entry)
                                 entries.append(entry)
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
@@ -2042,6 +2060,7 @@ class EksisozlukScraper:
                                 self.scraped_entry_ids.add(entry_id)
                             entry['title'] = title
                             if self._entry_matches_filters(entry):
+                                self._populate_entry_referenced_content(entry)
                                 entries.append(entry)
                             # Max entries kontrolü
                             if self.max_entries and len(entries) >= self.max_entries:
@@ -2160,6 +2179,7 @@ class EksisozlukScraper:
                             self.scraped_entry_ids.add(entry_id_parsed)
                         entry['title'] = title
                         if self._entry_matches_filters(entry):
+                            self._populate_entry_referenced_content(entry)
                             entries.append(entry)
                         start_index = i
                         print(f"Başlangıç entry bulundu (sayfa {page})", file=sys.stderr)
@@ -2177,6 +2197,7 @@ class EksisozlukScraper:
                                     self.scraped_entry_ids.add(entry_id_parsed)
                                 entry['title'] = title
                                 if self._entry_matches_filters(entry):
+                                    self._populate_entry_referenced_content(entry)
                                     entries.append(entry)
                                 # Max entries kontrolü
                                 if self.max_entries and len(entries) >= self.max_entries:
@@ -2250,6 +2271,7 @@ class EksisozlukScraper:
                                 self.scraped_entry_ids.add(entry_id_parsed)
                             entry['title'] = title
                             if self._entry_matches_filters(entry):
+                                self._populate_entry_referenced_content(entry)
                                 page_entries.append(entry)
                     
                     if not page_entries and not self.entry_filters:
