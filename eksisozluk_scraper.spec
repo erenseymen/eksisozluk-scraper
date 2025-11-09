@@ -6,7 +6,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-project_root = Path(__file__).parent.resolve()
+project_root = Path.cwd()
 
 datas = []
 # Bundled data files required by optional runtime dependencies.
