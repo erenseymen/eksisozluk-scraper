@@ -18,4 +18,5 @@ complete -c eksisozluk-scraper -l output -s o -d "Çıktı dosyası (.json, .csv
 complete -c eksisozluk-scraper -l no-bkz -d "Referans edilen entry'leri fetch etme (bkz özelliğini devre dışı bırak)"
 complete -c eksisozluk-scraper -l filter -d "Entry içeriklerinde anahtar kelimeleri filtrele (büyük/küçük harf duyarsız)" -r
 complete -c eksisozluk-scraper -l help -s h -d "Yardım mesajını göster"
+complete -c eksisozluk-scraper -l reverse -s r -d "Entry'leri ters sırada tara; entry URL'i verildiğinde önceki entry'leri içerir"
 

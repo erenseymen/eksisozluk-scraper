@@ -2026,13 +2026,18 @@ class EksisozlukScraper:
                 
                 # Entry'den itibaren bu sayfadaki entry'leri ekle
                 if start_index is not None:
-                    for elem in entry_elements[start_index:]:
+                    if self.reverse:
+                        indices = range(start_index, -1, -1)
+                    else:
+                        indices = range(start_index, len(entry_elements))
+                    for idx in indices:
+                        elem = entry_elements[idx]
                         entry = self._parse_entry(elem)
                         if entry:
-                            entry_id = entry.get('entry_id')
+                            parsed_entry_id = entry.get('entry_id')
                             # Entry ID'yi işaretle (duplikasyon önleme)
-                            if entry_id:
-                                self.scraped_entry_ids.add(entry_id)
+                            if parsed_entry_id:
+                                self.scraped_entry_ids.add(parsed_entry_id)
                             entry['title'] = title
                             if self._entry_matches_filters(entry):
                                 self._populate_entry_referenced_content(entry)
@@ -2051,13 +2056,14 @@ class EksisozlukScraper:
                 else:
                     # Entry bu sayfada bulunamadı, tüm sayfayı al (focusto sayfası olduğu için entry olmalı)
                     print(f"Uyarı: Entry bu sayfada bulunamadı, tüm sayfa alınıyor", file=sys.stderr)
-                    for elem in entry_elements:
+                    iterable = entry_elements if not self.reverse else reversed(entry_elements)
+                    for elem in iterable:
                         entry = self._parse_entry(elem)
                         if entry:
-                            entry_id = entry.get('entry_id')
+                            parsed_entry_id = entry.get('entry_id')
                             # Entry ID'yi işaretle (duplikasyon önleme)
-                            if entry_id:
-                                self.scraped_entry_ids.add(entry_id)
+                            if parsed_entry_id:
+                                self.scraped_entry_ids.add(parsed_entry_id)
                             entry['title'] = title
                             if self._entry_matches_filters(entry):
                                 self._populate_entry_referenced_content(entry)
@@ -2188,7 +2194,31 @@ class EksisozlukScraper:
                 if found_start_entry:
                     # Bu sayfadaki kalan entry'leri de ekle
                     if start_index is not None:
-                        for elem in entry_elements[start_index + 1:]:
+                        if self.reverse:
+                            indices = range(start_index - 1, -1, -1)
+                        else:
+                            indices = range(start_index + 1, len(entry_elements))
+                        for idx in indices:
+                            elem = entry_elements[idx]
+                            entry = self._parse_entry(elem)
+                            if entry:
+                                entry_id_parsed = entry.get('entry_id')
+                                # Entry ID'yi işaretle (duplikasyon önleme)
+                                if entry_id_parsed:
+                                    self.scraped_entry_ids.add(entry_id_parsed)
+                                entry['title'] = title
+                                if self._entry_matches_filters(entry):
+                                    self._populate_entry_referenced_content(entry)
+                                    entries.append(entry)
+                                # Max entries kontrolü
+                                if self.max_entries and len(entries) >= self.max_entries:
+                                    entries = entries[:self.max_entries]
+                                    print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
+                                    break
+                        # Reverse modunda ilk sayfada daha eski entry yoksa bir sonraki (önceki) sayfaya geçilecek
+                    else:
+                        iterable = entry_elements if not self.reverse else reversed(entry_elements)
+                        for elem in iterable:
                             entry = self._parse_entry(elem)
                             if entry:
                                 entry_id_parsed = entry.get('entry_id')
@@ -2221,85 +2251,158 @@ class EksisozlukScraper:
             if self.max_entries and len(entries) >= self.max_entries:
                 print(f"Maksimum entry sayısına zaten ulaşıldı ({self.max_entries}), sayfa geçişi atlanıyor", file=sys.stderr)
             else:
-                # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
-                # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
-                # Şimdi sonraki sayfalardan devam et
-                page += 1
-                print(f"Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
-                
-                while True:
-                    if pagination_format:
-                        url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
-                    elif title_id:
-                        url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
-                    else:
-                        url = f"{self.BASE_URL}/{title}?p={page}"
-                    
-                    response = self._make_request(url)
-                    if not response:
-                        break
-                    
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    # Entry'leri bul - ul#entry-item-list öncelikli
-                    entry_elements = soup.find_all('li', {'data-id': True})
-                    
-                    if not entry_elements:
-                        entry_elements = soup.select('ul#entry-item-list > li')
-                    
-                    if not entry_elements:
-                        entry_elements = soup.select('ul#entry-list > li')
-                    
-                    if not entry_elements:
-                        entry_list = (soup.find('ul', id='entry-item-list') or 
-                                    soup.find('ul', id='entry-list'))
-                        if entry_list:
-                            entry_elements = entry_list.find_all('li', {'data-id': True})
-                    
-                    if not entry_elements:
-                        entry_elements = soup.find_all('div', {'class': 'content-item'})
-                    
-                    if not entry_elements:
-                        break
-                    
-                    page_entries = []
-                    for elem in entry_elements:
-                        entry = self._parse_entry(elem)
-                        if entry:
-                            entry_id_parsed = entry.get('entry_id')
-                            # Entry ID'yi işaretle (duplikasyon önleme)
-                            if entry_id_parsed:
-                                self.scraped_entry_ids.add(entry_id_parsed)
-                            entry['title'] = title
-                            if self._entry_matches_filters(entry):
-                                self._populate_entry_referenced_content(entry)
-                                page_entries.append(entry)
-                    
-                    if not page_entries and not self.entry_filters:
-                        break
-                    
-                    entries.extend(page_entries)
-                    print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
-                    
-                    # Max entries kontrolü
-                    if self.max_entries and len(entries) >= self.max_entries:
-                        # Limit aşıldı, fazla entry'leri kaldır
-                        entries = entries[:self.max_entries]
-                        print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
+                if self.reverse:
+                    # Entry'den önceki sayfalara git
+                    page -= 1
+                    if page >= 1:
+                        print(f"Entry bulundu, önceki sayfalar taranıyor (başlangıç sayfası {page})", file=sys.stderr)
+                    while page >= 1:
+                        if pagination_format:
+                            url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                        elif title_id:
+                            url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
+                        else:
+                            url = f"{self.BASE_URL}/{title}?p={page}"
+                        
+                        response = self._make_request(url)
+                        if not response:
+                            break
+                        
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        # Entry'leri bul - ul#entry-item-list öncelikli
+                        entry_elements = soup.find_all('li', {'data-id': True})
+                        
+                        if not entry_elements:
+                            entry_elements = soup.select('ul#entry-item-list > li')
+                        
+                        if not entry_elements:
+                            entry_elements = soup.select('ul#entry-list > li')
+                        
+                        if not entry_elements:
+                            entry_list = (soup.find('ul', id='entry-item-list') or 
+                                        soup.find('ul', id='entry-list'))
+                            if entry_list:
+                                entry_elements = entry_list.find_all('li', {'data-id': True})
+                        
+                        if not entry_elements:
+                            entry_elements = soup.find_all('div', {'class': 'content-item'})
+                        
+                        if not entry_elements:
+                            break
+                        
+                        page_entries = []
+                        for elem in reversed(entry_elements):
+                            entry = self._parse_entry(elem)
+                            if entry:
+                                entry_id_parsed = entry.get('entry_id')
+                                # Entry ID'yi işaretle (duplikasyon önleme)
+                                if entry_id_parsed:
+                                    self.scraped_entry_ids.add(entry_id_parsed)
+                                entry['title'] = title
+                                if self._entry_matches_filters(entry):
+                                    self._populate_entry_referenced_content(entry)
+                                    page_entries.append(entry)
+                        
+                        if not page_entries and not self.entry_filters:
+                            break
+                        
+                        entries.extend(page_entries)
+                        print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
+                        
+                        # Max entries kontrolü
+                        if self.max_entries and len(entries) >= self.max_entries:
+                            # Limit aşıldı, fazla entry'leri kaldır
+                            entries = entries[:self.max_entries]
+                            print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
+                            # Entry'leri dosyaya yaz (incremental update)
+                            self._write_entries_to_file(entries)
+                            break
+                        
                         # Entry'leri dosyaya yaz (incremental update)
                         self._write_entries_to_file(entries)
-                        break
-                    
-                    # Entry'leri dosyaya yaz (incremental update)
-                    self._write_entries_to_file(entries)
-                    
-                    # Son sayfa kontrolü
-                    last_page = self._find_last_page_from_pagination(soup)
-                    if last_page and page >= last_page:
-                        print(f"Son sayfa numarasına ulaşıldı ({last_page}), tarama sonlandırılıyor", file=sys.stderr)
-                        break
-                    
+                        
+                        page -= 1
+                        time.sleep(self.delay)
+                else:
+                    # Yeni format için: sayfa numarası zaten bulundu, o sayfadaki entry'ler alındı
+                    # Eski format için: entry bulundu, o sayfadaki kalan entry'ler alındı
+                    # Şimdi sonraki sayfalardan devam et
                     page += 1
-                    time.sleep(self.delay)
+                    print(f"Entry bulundu, sayfa {page}'den devam ediliyor", file=sys.stderr)
+                    
+                    while True:
+                        if pagination_format:
+                            url = f"{self.BASE_URL}{pagination_format.format(page=page)}"
+                        elif title_id:
+                            url = f"{self.BASE_URL}/{title}--{title_id}?p={page}"
+                        else:
+                            url = f"{self.BASE_URL}/{title}?p={page}"
+                        
+                        response = self._make_request(url)
+                        if not response:
+                            break
+                        
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        # Entry'leri bul - ul#entry-item-list öncelikli
+                        entry_elements = soup.find_all('li', {'data-id': True})
+                        
+                        if not entry_elements:
+                            entry_elements = soup.select('ul#entry-item-list > li')
+                        
+                        if not entry_elements:
+                            entry_elements = soup.select('ul#entry-list > li')
+                        
+                        if not entry_elements:
+                            entry_list = (soup.find('ul', id='entry-item-list') or 
+                                        soup.find('ul', id='entry-list'))
+                            if entry_list:
+                                entry_elements = entry_list.find_all('li', {'data-id': True})
+                        
+                        if not entry_elements:
+                            entry_elements = soup.find_all('div', {'class': 'content-item'})
+                        
+                        if not entry_elements:
+                            break
+                        
+                        page_entries = []
+                        for elem in entry_elements:
+                            entry = self._parse_entry(elem)
+                            if entry:
+                                entry_id_parsed = entry.get('entry_id')
+                                # Entry ID'yi işaretle (duplikasyon önleme)
+                                if entry_id_parsed:
+                                    self.scraped_entry_ids.add(entry_id_parsed)
+                                entry['title'] = title
+                                if self._entry_matches_filters(entry):
+                                    self._populate_entry_referenced_content(entry)
+                                    page_entries.append(entry)
+                        
+                        if not page_entries and not self.entry_filters:
+                            break
+                        
+                        entries.extend(page_entries)
+                        print(f"Sayfa {page} tamamlandı, {len(page_entries)} entry bulundu (şu ana kadar toplam: {len(entries)})", file=sys.stderr)
+                        
+                        # Max entries kontrolü
+                        if self.max_entries and len(entries) >= self.max_entries:
+                            # Limit aşıldı, fazla entry'leri kaldır
+                            entries = entries[:self.max_entries]
+                            print(f"Maksimum entry sayısına ulaşıldı ({self.max_entries}), tarama durduruluyor", file=sys.stderr)
+                            # Entry'leri dosyaya yaz (incremental update)
+                            self._write_entries_to_file(entries)
+                            break
+                        
+                        # Entry'leri dosyaya yaz (incremental update)
+                        self._write_entries_to_file(entries)
+                        
+                        # Son sayfa kontrolü
+                        last_page = self._find_last_page_from_pagination(soup)
+                        if last_page and page >= last_page:
+                            print(f"Son sayfa numarasına ulaşıldı ({last_page}), tarama sonlandırılıyor", file=sys.stderr)
+                            break
+                        
+                        page += 1
+                        time.sleep(self.delay)
         
         # Referans edilen entry'leri fetch et ve ilgili entry'lere ekle
         if self.fetch_referenced:
