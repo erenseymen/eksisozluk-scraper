@@ -442,22 +442,6 @@ class EksisozlukScraper:
                 final_content = re.sub(r'[ \t]*\n[ \t]*', '\n', final_content)
                 entry_data['content'] = final_content
             
-            # Fav sayısı
-            fav_elem = (entry_element.find('span', {'class': 'fav-count'}) or
-                       entry_element.find('span', class_=re.compile('fav')) or
-                       entry_element.find('a', class_=re.compile('favorite')))
-            if fav_elem:
-                fav_text = fav_elem.get_text(strip=True)
-                # Sayıları çıkar
-                fav_numbers = re.findall(r'\d+', fav_text)
-                if fav_numbers:
-                    try:
-                        entry_data['favorite_count'] = int(fav_numbers[0])
-                    except ValueError:
-                        entry_data['favorite_count'] = 0
-                else:
-                    entry_data['favorite_count'] = 0
-            
             # Entry numarası (sıralama)
             entry_no_elem = (entry_element.find('span', {'class': 'index'}) or
                            entry_element.find('span', class_=re.compile('index')) or

@@ -17,6 +17,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 - ✅ Rate limiting
 - ✅ Hata durumunda otomatik retry mekanizması
 - ✅ **Gemini CLI entegrasyonu** - AI destekli özet ve blog yazısı oluşturma
+- ✅ Entry'lerdeki harici linkler için içerik çekme ve YouTube transkript çekme desteği (Twitter çekme yok)
 
 ## Kurulum
 
@@ -115,6 +116,16 @@ eksisozluk-scraper "titanic" --filter film --filter "aşk|gemi"
 eksisozluk-scraper "başlık adı" --filter-urls
 ```
 
+### Ters Sırada Tarama
+
+```bash
+# En yeni entry'den başlayarak geriye doğru tarar
+eksisozluk-scraper "başlık adı" --reverse
+
+# Zaman filtresi ile birlikte kullanabilirsiniz
+eksisozluk-scraper "başlık adı" --years 1 --reverse
+```
+
 ### Belirli Entry'den İtibaren Scrape Etme
 
 ```bash
@@ -159,6 +170,53 @@ eksisozluk-scraper "başlık adı" --no-bkz
 ```bash
 # Çıktıyı jq ile filtreleyip sadece entry metnini gösterme
 eksisozluk-scraper "the beatles" --years 1 | jq '.entries[] | {content}'
+```
+
+## Çıktı Yapısı
+
+JSON/CSV/Markdown çıktılarında her entry aşağıdaki ek alanları içerir:
+
+- `entry_number`: Başlık içindeki sıra numarası (varsa)
+- `has_external_url`: Entry'de Ekşi dışı link var mı?
+- `referenced_content`: Entry içinden toplanan ek içerikler listesi
+
+`referenced_content` aşağıdaki tipleri içerebilir:
+
+- `type: "entry"` → bkz edilen veya takip eden Ekşi entry'leri (başlık, entry_id, author, date, content vb.)
+- `type: "url"` → harici bağlantılar için trafilatura ile çıkarılmış başlık/özet/metin
+- `type: "youtube"` → YouTube linkleri için otomatik transkript (uygun dilde mevcutsa), video başlığı ve `video_id`
+
+Ek bilgi olarak URL içerikleri `summary`, `language`, `extraction_warning` gibi alanlar içerebilir. `--filter-urls` parametresi, yalnızca `has_external_url` değeri `true` olan entry'leri döndürür.
+
+Örnek JSON kaydı:
+
+```json
+{
+  "title": "the beatles",
+  "entry_id": "123456",
+  "author": "gitarist",
+  "date": "08.11.2025 21:34",
+  "content": "en sevdiğim beatles şarkısı...",
+  "entry_number": "125",
+  "has_external_url": true,
+  "referenced_content": [
+    {
+      "type": "entry",
+      "title": "john lennon",
+      "entry_id": "654321",
+      "author": "lennonsever",
+      "date": "07.11.2025 10:12",
+      "content": "john lennon hakkında detaylı bilgi..."
+    },
+    {
+      "type": "youtube",
+      "url": "https://www.youtube.com/watch?v=abc123xyz78",
+      "video_id": "abc123xyz78",
+      "title": "Beatles belgeseli",
+      "content": "Transkript metni..."
+    }
+  ]
+}
 ```
 
 ## Gemini CLI entegrasyonu
