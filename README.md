@@ -14,7 +14,6 @@ Terminal tabanlı Ekşi Sözlük scraper'ı. JSON, CSV ve Markdown çıktıları
 - Debian: [eksisozluk-scraper_2.0.0-1_all.deb](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v2.0.0/eksisozluk-scraper_2.0.0-1_all.deb)
 - RPM: [eksisozluk-scraper-2.0.0-1.noarch.rpm](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v2.0.0/eksisozluk-scraper-2.0.0-1.noarch.rpm)
 - AUR: [`eksisozluk-scraper`](https://aur.archlinux.org/packages/eksisozluk-scraper)
-- Windows: [eksisozluk-scraper.exe](https://github.com/erenseymen/eksisozluk-scraper/releases/download/v2.0.0/eksisozluk-scraper.exe) veya MSI/özel kurulum adımları için `WINDOWS.md`
 - Pip: `pip install eksisozluk-scraper` veya `pip install git+https://github.com/erenseymen/eksisozluk-scraper.git`
 - Kaynaktan: `git clone ... && pip install -r requirements.txt && python eksisozluk_scraper.py "başlık"`
 
