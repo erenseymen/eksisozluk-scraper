@@ -1,6 +1,6 @@
 # Maintainer: Eren Seymen <>
 pkgname=eksisozluk-scraper
-pkgver=1.1.0
+pkgver=2.0.0
 pkgrel=1
 pkgdesc="Terminal tabanlı Ekşi Sözlük scraper'ı. Çıktısı AI-friendly formatlarda: JSON (varsayılan), CSV ve Markdown."
 arch=('any')

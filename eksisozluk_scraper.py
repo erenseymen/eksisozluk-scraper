@@ -4,7 +4,7 @@ Ekşi Sözlük Scraper
 Terminal tabanlı, AI-friendly output üreten scraper.
 """
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 import argparse
 try:

@@ -1,7 +1,7 @@
 Source: eksisozluk-scraper
 Section: utils
 Priority: optional
-Maintainer: Eren Seymen
+Maintainer: Eren Seymen <eren@sey.men>
 Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
 Standards-Version: 4.6.0
 Homepage: https://github.com/erenseymen/eksisozluk-scraper
@@ -9,6 +9,7 @@ Homepage: https://github.com/erenseymen/eksisozluk-scraper
 Package: eksisozluk-scraper
 Architecture: all
 Depends: ${misc:Depends},
+         ${python3:Depends},
          python3,
          python3-cloudscraper,
          python3-bs4,

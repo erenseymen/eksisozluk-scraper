@@ -1,24 +1,41 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 block_cipher = None
+
+project_root = Path(__file__).parent.resolve()
+
+datas = []
+# Bundled data files required by optional runtime dependencies.
+datas += collect_data_files('trafilatura', include_py_files=False)
+datas += collect_data_files('rich', include_py_files=False)
+datas += collect_data_files('youtube_transcript_api', include_py_files=False)
+
+hiddenimports = [
+    'argcomplete',
+    'beautifulsoup4',
+    'bs4',
+    'charset_normalizer',
+    'cloudscraper',
+    'courlan',
+    'lxml',
+    'markdown_it',
+    'requests',
+    'soupsieve',
+    'trafilatura',
+    'urllib3',
+    'youtube_transcript_api',
+] + collect_submodules('trafilatura') + collect_submodules('rich')
 
 a = Analysis(
     ['eksisozluk_scraper.py'],
-    pathex=[],
+    pathex=[str(project_root)],
     binaries=[],
-    datas=[],
-    hiddenimports=[
-        'cloudscraper',
-        'bs4',
-        'beautifulsoup4',
-        'argcomplete',
-        'requests',
-        'urllib3',
-        'certifi',
-        'charset_normalizer',
-        'lxml',
-        'soupsieve',
-    ],
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -5,7 +5,7 @@
 %define __find_provides %{nil}
 
 Name:           eksisozluk-scraper
-Version:        1.1.0
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper
 
@@ -112,6 +112,9 @@ fi
 %{_datadir}/fish/vendor_completions.d/eksisozluk-scraper.fish
 
 %changelog
+* Mon Nov 10 2025 Eren Seymen - 2.0.0-1
+- 2.0.0 release
+
 * Mon Nov 04 2025 Eren Seymen - 1.1.0-1
 - Initial RPM package release
 

@@ -1,9 +1,15 @@
+eksisozluk-scraper (2.0.0-1) unstable; urgency=medium
+
+  * 2.0.0 release
+
+ -- Eren Seymen <eren@sey.men>  Mon, 10 Nov 2025 10:00:00 +0300
+
 eksisozluk-scraper (1.1.0-1) unstable; urgency=medium
 
   * Added Fish shell tab completion support
   * Updated documentation with Fish completion instructions
 
- -- Eren Seymen  Tue, 04 Nov 2025 07:45:00 +0300
+ -- Eren Seymen <eren@sey.men>  Tue, 04 Nov 2025 07:45:00 +0300
 
 eksisozluk-scraper (1.0.0-1) unstable; urgency=medium
 
@@ -11,5 +17,5 @@ eksisozluk-scraper (1.0.0-1) unstable; urgency=medium
   * Added tab completion support
   * Added Debian packaging
 
- -- Eren Seymen  Mon, 01 Jan 2024 00:00:00 +0000
+ -- Eren Seymen <eren@sey.men>  Mon, 01 Jan 2024 00:00:00 +0000
 
