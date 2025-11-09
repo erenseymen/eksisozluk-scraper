@@ -12,6 +12,7 @@ Cursor (yapay zeka) ile yazılmıştır.
 - ✅ Format otomatik tespiti (dosya uzantısından)
 - ✅ Başlık bazlı tüm entry scraping
 - ✅ Zaman aralığına göre filtreleme (gün/hafta/ay/yıl)
+- ✅ Belirli tarih aralığına göre filtreleme (başlangıç/bitiş)
 - ✅ Spesifik entry'den itibaren scraping
 - ✅ Rate limiting
 - ✅ Hata durumunda otomatik retry mekanizması
@@ -76,6 +77,15 @@ eksisozluk-scraper "başlık adı" --months 1
 
 # Son 1 yıllık entry'ler
 eksisozluk-scraper "başlık adı" --years 1
+
+# Belirli tarih aralığındaki entry'ler (tarihler dahil)
+eksisozluk-scraper "başlık adı" --start 2024.01.01 --end 2024.02.01
+
+# Sadece başlangıç tarihi (belirtilen tarihten itibaren)
+eksisozluk-scraper "başlık adı" --start 2024.03.15
+
+# Sadece bitiş tarihi (belirtilen tarihe kadar)
+eksisozluk-scraper "başlık adı" --end 2024.03.01
 ```
 
 ### Maksimum Entry Sayısı

@@ -29,6 +29,38 @@ from urllib.parse import urlparse, parse_qs, urljoin
 import cloudscraper
 from bs4 import BeautifulSoup
 
+CLI_DATE_INPUT_EXAMPLE = "YYYY.MM.DD veya YYYY.MM.DD-HH:MM"
+
+
+def _parse_cli_datetime(value: str) -> datetime:
+    """Argparse için 'YYYY.MM.DD[-HH:MM]' formatında tarih/zaman ayrıştırır."""
+    if not value:
+        raise argparse.ArgumentTypeError("Tarih değeri boş olamaz")
+
+    normalized = value.strip()
+    parse_attempts = (
+        ("%Y.%m.%d-%H:%M", "YYYY.MM.DD-HH:MM"),
+        ("%Y.%m.%d", "YYYY.MM.DD"),
+    )
+
+    for fmt, _ in parse_attempts:
+        try:
+            return datetime.strptime(normalized, fmt)
+        except ValueError:
+            continue
+
+    expected_formats = ", ".join(example for _, example in parse_attempts)
+    raise argparse.ArgumentTypeError(
+        f"Geçersiz tarih formatı: '{value}'. Beklenen formatlar: {expected_formats}"
+    )
+
+
+def _format_cli_datetime(dt: datetime) -> str:
+    """Metadatada kullanılmak üzere CLI tarih/zamanını string'e çevirir."""
+    if dt.hour == 0 and dt.minute == 0:
+        return dt.strftime("%Y.%m.%d")
+    return dt.strftime("%Y.%m.%d-%H:%M")
+
 try:
     import trafilatura  # type: ignore[import-not-found]
 except ImportError:
@@ -79,6 +111,8 @@ class EksisozlukScraper:
         content_filters: Optional[List[str]] = None,
         filter_external_urls: bool = False,
         reverse: bool = False,
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
     ):
         """
         Args:
@@ -101,6 +135,8 @@ class EksisozlukScraper:
         self.filter_external_urls = filter_external_urls
         self.reverse = reverse
         self.entry_filters = [f.strip() for f in (content_filters or []) if isinstance(f, str) and f.strip()]
+        self.start_datetime = start_datetime
+        self.end_datetime = end_datetime
         self._filter_groups: List[List[str]] = []
         for filter_str in self.entry_filters:
             if not isinstance(filter_str, str):
@@ -1332,8 +1368,20 @@ class EksisozlukScraper:
         # Scrape bilgilerini kaydet
         self.scrape_start_time = datetime.now()
         self.scrape_input = title
+        absolute_filter_active = bool(self.start_datetime or self.end_datetime)
         # Zaman filtresi string'ini Türkçeleştir
-        if time_filter_string:
+        if absolute_filter_active:
+            if self.start_datetime and self.end_datetime:
+                start_label = _format_cli_datetime(self.start_datetime)
+                end_label = _format_cli_datetime(self.end_datetime)
+                self.scrape_time_filter = f"{start_label} ile {end_label} arası"
+            elif self.start_datetime:
+                start_label = _format_cli_datetime(self.start_datetime)
+                self.scrape_time_filter = f"{start_label} ve sonrası"
+            elif self.end_datetime:
+                end_label = _format_cli_datetime(self.end_datetime)
+                self.scrape_time_filter = f"{end_label} ve öncesi"
+        elif time_filter_string:
             # İngilizce string'i Türkçeleştir
             if 'months' in time_filter_string:
                 months_num = time_filter_string.split()[0]
@@ -1480,7 +1528,7 @@ class EksisozlukScraper:
                     print(f"Son sayfa numarası: {last_page}", file=sys.stderr)
                     
                     # Zaman filtresi veya ters sıralama isteği varsa son sayfadan başla
-                    if time_filter or reverse_order:
+                    if time_filter or reverse_order or absolute_filter_active:
                         page = last_page
                         reverse_order = True
                         reasons = []
@@ -1488,6 +1536,8 @@ class EksisozlukScraper:
                             reasons.append("zaman filtresi aktif")
                         if self.reverse:
                             reasons.append("ters sıralı tarama seçildi")
+                        if absolute_filter_active:
+                            reasons.append("özelleştirilmiş tarih aralığı kullanılıyor")
                         reason_text = f" ({', '.join(reasons)})" if reasons else ""
                         print(f"Son sayfadan başlayıp geriye doğru taranıyor{reason_text} (başlangıç sayfası {last_page})", file=sys.stderr)
                         # İlk sayfayı atla, direkt son sayfaya git
@@ -1528,7 +1578,8 @@ class EksisozlukScraper:
                 break
             
             page_entries = []
-            all_entries_too_old = True
+            all_entries_too_old = bool(time_filter)
+            all_entries_before_start = bool(self.start_datetime)
             
             for elem in entry_elements:
                 entry = self._parse_entry(elem)
@@ -1538,28 +1589,47 @@ class EksisozlukScraper:
                     if entry_id:
                         self.scraped_entry_ids.add(entry_id)
                     
-                    # Zaman filtresi kontrolü
-                    if time_filter:
+                    entry_dt: Optional[datetime] = None
+                    needs_datetime = time_filter or absolute_filter_active
+                    if needs_datetime:
                         entry_dt = self._parse_datetime(entry.get('date', ''))
                         if not entry_dt:
-                            # Tarih parse edilemezse, zaman filtresi aktifken entry'yi dahil etme
-                            # (güvenli tarafta kal: parse edilemeyen tarihleri hariç tut)
+                            # Tarih parse edilemezse mutlak/zaman filtresi aktifken entry'yi dahil etme
                             continue
-                        
-                        # Entry'nin zaman filtresi içinde olup olmadığını kontrol et
+
+                    within_relative_range = True
+                    if time_filter and entry_dt:
                         entry_age = datetime.now() - entry_dt
-                        if entry_age <= time_filter:
+                        within_relative_range = entry_age <= time_filter
+                        if within_relative_range:
                             all_entries_too_old = False
-                            entry['title'] = title
-                            if self._entry_matches_filters(entry):
-                                page_entries.append(entry)
-                        # Eğer entry çok eskiyse, sadece skip et (durma)
-                    else:
-                        # Zaman filtresi yok, tüm entry'leri ekle
+
+                    within_absolute_range = True
+                    if absolute_filter_active and entry_dt:
+                        before_start = bool(self.start_datetime and entry_dt < self.start_datetime)
+                        after_end = bool(self.end_datetime and entry_dt > self.end_datetime)
+                        if self.start_datetime and not before_start:
+                            all_entries_before_start = False
+                        within_absolute_range = not before_start and not after_end
+
+                    include_entry = within_relative_range and within_absolute_range
+
+                    if include_entry:
                         entry['title'] = title
                         if self._entry_matches_filters(entry):
                             page_entries.append(entry)
-                        all_entries_too_old = False
+                        else:
+                            # Filtrelere takılsa bile zaman aralığında bir entry bulunduğunu not et
+                            if not time_filter:
+                                all_entries_too_old = False
+                        if not time_filter:
+                            all_entries_too_old = False
+                    else:
+                        if time_filter and not within_relative_range:
+                            # Entry zaman filtresi dışında kaldı
+                            pass
+                        if absolute_filter_active and self.start_datetime and entry_dt and entry_dt >= self.start_datetime:
+                            all_entries_before_start = False
             
             if reverse_order and page_entries:
                 page_entries.sort(
@@ -1606,6 +1676,15 @@ class EksisozlukScraper:
                 else:
                     # Sayfada entry yok, bir sonraki sayfaya geç
                     pass
+
+            if (
+                absolute_filter_active
+                and self.start_datetime
+                and all_entries_before_start
+                and reverse_order
+            ):
+                print("Belirlenen başlangıç tarihinden daha eski entry'lere ulaşıldı, tarama durduruluyor", file=sys.stderr)
+                break
             
             # Sayfa navigasyonu
             if reverse_order:
@@ -1619,6 +1698,7 @@ class EksisozlukScraper:
                 if (
                     not page_entries
                     and not time_filter
+                    and not absolute_filter_active
                     and not self.entry_filters
                     and not self.filter_external_urls
                 ):
@@ -2581,6 +2661,9 @@ def main():
   # Belirli bir entry'den itibaren scrape et:
   eksisozluk-scraper "https://eksisozluk.com/python--123456"
 
+  # Belirli bir tarih aralığındaki entry'leri scrape et:
+  eksisozluk-scraper "python" --start 2024.01.01 --end 2024.01.31
+
   # Farklı çıktı formatları:
   eksisozluk-scraper "python" --output sonuclar.json  # JSON formatı
   eksisozluk-scraper "python" --output sonuclar.csv    # CSV formatı
@@ -2626,6 +2709,10 @@ def main():
     parser.add_argument('--weeks', type=int, help='Son N haftalık entry\'leri scrape et')
     parser.add_argument('--months', type=int, help='Son N aylık entry\'leri scrape et')
     parser.add_argument('--years', type=int, help='Son N yıllık entry\'leri scrape et')
+    parser.add_argument('--start', dest='start_datetime', type=_parse_cli_datetime,
+                        help=f"Belirli bir başlangıç tarihinden itibaren entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
+    parser.add_argument('--end', dest='end_datetime', type=_parse_cli_datetime,
+                        help=f"Belirli bir bitiş tarihine kadar entry'leri dahil et ({CLI_DATE_INPUT_EXAMPLE})")
     parser.add_argument('--delay', type=float, default=0.0, help='Request\'ler arası bekleme süresi (saniye, varsayılan: 0.0)')
     parser.add_argument('--max-retries', type=int, default=3, help='Maksimum tekrar deneme sayısı (varsayılan: 3)')
     parser.add_argument('--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
@@ -2652,6 +2739,15 @@ def main():
     # Input kontrolü - --version kullanıldıysa buraya gelmez (argparse otomatik çıkar)
     if not args.input:
         parser.error('input argümanı gereklidir (başlık adı veya entry URL\'si)')
+
+    # Mutually exclusive time filters kontrolü
+    relative_filters = any([args.days, args.weeks, args.months, args.years])
+    absolute_filters = any([args.start_datetime, args.end_datetime])
+    if relative_filters and absolute_filters:
+        parser.error("Mutlak tarih aralığı (--start/--end) ile relativ filtreler (--days/--weeks/--months/--years) birlikte kullanılamaz")
+
+    if args.start_datetime and args.end_datetime and args.start_datetime > args.end_datetime:
+        parser.error("Başlangıç tarihi, bitiş tarihinden büyük olamaz")
     
     # Zaman filtresi hesapla
     time_filter = None
@@ -2680,6 +2776,8 @@ def main():
         content_filters=args.filters,
         filter_external_urls=args.filter_urls,
         reverse=args.reverse,
+        start_datetime=args.start_datetime,
+        end_datetime=args.end_datetime,
     )
     
     if scraper.entry_filters:
@@ -2844,7 +2942,7 @@ def main():
                 'timestamp': datetime.now().isoformat(),
                 'total_entries': len(reordered_entries),
                 'input': args.input,
-                'time_filter': time_filter_string,
+                'time_filter': scraper.scrape_time_filter or time_filter_string,
             'filters': scraper.entry_filters,
             'filter_external_urls': scraper.filter_external_urls
             },

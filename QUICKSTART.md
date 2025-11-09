@@ -79,6 +79,15 @@ eksisozluk-scraper "python" --months 1
 
 # Last 1 year
 eksisozluk-scraper "python" --years 1
+
+# Entries between specific dates (inclusive)
+eksisozluk-scraper "python" --start 2024.01.01 --end 2024.01.31
+
+# Entries from a start date
+eksisozluk-scraper "python" --start 2024.02.01
+
+# Entries up to a given date
+eksisozluk-scraper "python" --end 2024.02.01
 ```
 
 ### Limit Entries
