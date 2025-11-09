@@ -119,6 +119,9 @@ eksisozluk-scraper "python" --delay 2.0
 # More retries
 eksisozluk-scraper "python" --max-retries 5
 
+# Fetch external content (YouTube/trafilatura)
+eksisozluk-scraper "python" --fetch
+
 # Disable referenced entries (bkz)
 eksisozluk-scraper "python" --no-bkz
 ```

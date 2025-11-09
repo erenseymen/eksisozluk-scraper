@@ -108,6 +108,7 @@ class EksisozlukScraper:
         output_file: Optional[str] = None,
         max_entries: Optional[int] = None,
         fetch_referenced: bool = True,
+        fetch_external: bool = False,
         content_filters: Optional[List[str]] = None,
         filter_external_urls: bool = False,
         reverse: bool = False,
@@ -122,6 +123,7 @@ class EksisozlukScraper:
             output_file: Entry'lerin yazılacağı JSON dosyası yolu (opsiyonel)
             max_entries: Maksimum entry sayısı (opsiyonel, None ise sınırsız)
             fetch_referenced: Referans edilen entry'leri fetch et (varsayılan: True)
+            fetch_external: Harici URL içeriklerini ve YouTube transkriptlerini fetch et (varsayılan: False)
             content_filters: Entry içeriklerini metin bazlı filtrelemek için anahtar kelimeler listesi
             filter_external_urls: Yalnızca Ekşi Sözlük dışı URL içeren entry'leri dahil et
             reverse: Entry'leri ters sırada (son sayfadan başlayarak) tarar
@@ -132,6 +134,7 @@ class EksisozlukScraper:
         self.output_file = output_file
         self.max_entries = max_entries
         self.fetch_referenced = fetch_referenced
+        self.fetch_external = fetch_external
         self.filter_external_urls = filter_external_urls
         self.reverse = reverse
         self.entry_filters = [f.strip() for f in (content_filters or []) if isinstance(f, str) and f.strip()]
@@ -372,7 +375,7 @@ class EksisozlukScraper:
                     
                     has_external_url = True
                     
-                    if not self.fetch_referenced:
+                    if not self.fetch_external:
                         continue
                     
                     if absolute_url in seen_urls:
@@ -391,7 +394,7 @@ class EksisozlukScraper:
                 
                 entry_data['has_external_url'] = has_external_url
                 
-                if self.fetch_referenced and pending_external_urls:
+                if self.fetch_external and pending_external_urls:
                     entry_data['_pending_external_urls'] = pending_external_urls
                 
                 # HTML tag'lerini temizle ama formatı koru
@@ -859,6 +862,9 @@ class EksisozlukScraper:
         if not url:
             return None
         
+        if not self.fetch_external:
+            return None
+        
         if url in self.url_content_cache:
             return self.url_content_cache[url]
         
@@ -1008,7 +1014,7 @@ class EksisozlukScraper:
         if not pending_urls:
             return
         
-        if not self.fetch_referenced:
+        if not self.fetch_external:
             return
         
         referenced_content = entry.setdefault('referenced_content', [])
@@ -2825,7 +2831,8 @@ def main():
     parser.add_argument('-T', '--retry-delay', type=float, default=1.0, help='Retry arası bekleme süresi (saniye, varsayılan: 1.0)')
     parser.add_argument('-n', '--max-entries', type=int, help='Maksimum entry sayısı (varsayılan: sınırsız)')
     parser.add_argument('--output', '-o', help='Çıktı dosyası. Format dosya uzantısından otomatik tespit edilir: .json (JSON, varsayılan), .csv (CSV), .md veya .markdown (Markdown). Varsayılan: stdout (JSON)')
-    parser.add_argument('-B', '--no-bkz', action='store_true', help='Referans edilen entry\'leri fetch etme (bkz özelliğini devre dışı bırak)')
+    parser.add_argument('-B', '--no-bkz', action='store_true', help='Referans edilen entry\'leri dahil etme (bkz bağlantılarını devre dışı bırak)')
+    parser.add_argument('--fetch', action='store_true', help='Harici URL içeriklerini ve YouTube transkriptlerini getir (varsayılan: devre dışı)')
     parser.add_argument('-f', '--filter', dest='filters', action='append', metavar='KELIME', help='Entry içeriklerini filtrele (büyük/küçük harf duyarsız). Birden fazla filtre için parametreyi tekrarlayın.')
     parser.add_argument('-u', '--filter-urls', dest='filter_urls', action='store_true', help='Yalnızca Ekşi Sözlük dışına ait URL içeren entry\'leri getir')
     parser.add_argument('-r', '--reverse', action='store_true', help='Entry\'leri ters sırada (son sayfadan başlayarak) tarar')
@@ -2880,6 +2887,7 @@ def main():
         output_file=args.output,
         max_entries=args.max_entries,
         fetch_referenced=not args.no_bkz,
+        fetch_external=args.fetch,
         content_filters=args.filters,
         filter_external_urls=args.filter_urls,
         reverse=args.reverse,
@@ -2917,8 +2925,8 @@ def main():
                         'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
-                    'filters': scraper.entry_filters,
-                    'filter_external_urls': scraper.filter_external_urls
+                        'filters': scraper.entry_filters,
+                        'filter_external_urls': scraper.filter_external_urls
                     },
                     'entries': reordered_entries
                 }
@@ -2967,8 +2975,8 @@ def main():
                         'total_entries': len(reordered_entries),
                         'input': scraper.scrape_input or args.input,
                         'time_filter': scraper.scrape_time_filter or time_filter_string,
-                    'filters': scraper.entry_filters,
-                    'filter_external_urls': scraper.filter_external_urls
+                        'filters': scraper.entry_filters,
+                        'filter_external_urls': scraper.filter_external_urls
                     },
                     'entries': reordered_entries
                 }

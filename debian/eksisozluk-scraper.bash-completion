@@ -9,7 +9,7 @@ _eksisozluk_scraper() {
     words=("${COMP_WORDS[@]}")
 
     # Options
-    local opts="-h --help -v --version -d --days -w --weeks -m --months -y --years -s --start -e --end -D --delay -R --max-retries -T --retry-delay -n --max-entries -o --output -B --no-bkz -f --filter -u --filter-urls -r --reverse -z --ozet -b --blog -p --prompt -F --flash"
+    local opts="-h --help -v --version -d --days -w --weeks -m --months -y --years -s --start -e --end -D --delay -R --max-retries -T --retry-delay -n --max-entries -o --output -B --no-bkz --fetch -f --filter -u --filter-urls -r --reverse -z --ozet -b --blog -p --prompt -F --flash"
     
     # File completion for --output
     if [[ "$prev" == "--output" ]] || [[ "$prev" == "-o" ]]; then

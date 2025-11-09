@@ -14,7 +14,8 @@ _arguments -s \
   '(-T --retry-delay)'{-T,--retry-delay}"[Retry arası bekleme süresi (saniye, varsayılan: 1.0)]:retry delay (seconds):" \
   '(-n --max-entries)'{-n,--max-entries}"[Maksimum entry sayısı (varsayılan: sınırsız)]:max entries:" \
   '(-o --output)'{-o,--output}"[Çıktı dosyası (uzantıya göre format tespit edilir)]:output file:_files -g \"*.json *.csv *.md *.markdown\"" \
-  '(-B --no-bkz)'{-B,--no-bkz}"[Referans edilen entry'leri fetch etme (bkz özelliğini devre dışı bırak)]" \
+  '(-B --no-bkz)'{-B,--no-bkz}"[Referans edilen entry'leri dahil etme (bkz özelliğini kapat)]" \
+  '--fetch[Harici URL içeriklerini ve YouTube transkriptlerini getir]' \
   '*'{-f,--filter}"[Entry içeriklerinde anahtar kelimeleri filtrele (birden fazla olabilir)]:anahtar kelime:" \
   '(-u --filter-urls)'{-u,--filter-urls}"[Yalnızca Ekşi Sözlük dışı URL içeren entry'leri getir]" \
   '(-r --reverse)'{-r,--reverse}"[Entry'leri ters sırada tara (son sayfadan başla)]" \

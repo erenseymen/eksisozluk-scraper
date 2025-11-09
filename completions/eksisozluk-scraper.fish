@@ -22,7 +22,8 @@ complete -c eksisozluk-scraper -s T -l retry-delay -d "Retry arası bekleme sür
 complete -c eksisozluk-scraper -s n -l max-entries -d "Maksimum entry sayısı (varsayılan: sınırsız)" -r
 
 complete -c eksisozluk-scraper -s o -l output -d "Çıktı dosyası (uzantıya göre format tespit edilir)" -r -f -a "(__fish_complete_suffix .json .csv .md .markdown)"
-complete -c eksisozluk-scraper -s B -l no-bkz -d "Referans edilen entry'leri fetch etme (bkz özelliğini devre dışı bırak)"
+complete -c eksisozluk-scraper -s B -l no-bkz -d "Referans edilen entry'leri dahil etme (bkz özelliğini kapat)"
+complete -c eksisozluk-scraper -l fetch -d "Harici URL içeriklerini ve YouTube transkriptlerini getir"
 complete -c eksisozluk-scraper -s f -l filter -d "Entry içeriklerinde anahtar kelimeleri filtrele (birden fazla olabilir)" -r
 complete -c eksisozluk-scraper -s u -l filter-urls -d "Yalnızca Ekşi Sözlük dışı URL içeren entry'leri getir"
 complete -c eksisozluk-scraper -s r -l reverse -d "Entry'leri ters sırada tara (son sayfadan başla)"
