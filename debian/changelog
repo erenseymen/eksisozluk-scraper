@@ -1,3 +1,9 @@
+eksisozluk-scraper (2.0.1-1) unstable; urgency=medium
+
+  * 2.0.1 release: Fix - Verify gemini before doing gemini stuff
+
+ -- Eren Seymen <eren@sey.men>  Mon, 10 Nov 2025 11:30:00 +0300
+
 eksisozluk-scraper (2.0.0-1) unstable; urgency=medium
 
   * 2.0.0 release

@@ -20,7 +20,7 @@ if requirements_file.exists():
 
 setup(
     name="eksisozluk-scraper",
-    version="2.0.0",
+    version="2.0.1",
     description="Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper",
     long_description=long_description,
     long_description_content_type="text/markdown",
