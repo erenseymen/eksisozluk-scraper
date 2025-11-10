@@ -28,7 +28,7 @@ eksisozluk-scraper "başlık" --start 2024.01.01 --end 2024.02.01
 eksisozluk-scraper "başlık" --days 1
 
 # Entry ve içerik filtreleri
-eksisozluk-scraper "başlık" --filter python --filter asyncio
+eksisozluk-scraper "başlık" --filter "python|asyncio" --filter concurrency
 eksisozluk-scraper "başlık" --filter-urls
 eksisozluk-scraper "https://eksisozluk.com/entry/123456"
 
