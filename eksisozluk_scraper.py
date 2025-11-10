@@ -2480,9 +2480,9 @@ Notlar:
 - Her alıntıda yazar, tarih ve link bilgilerini mutlaka ekle"""
 
 
-def _check_gemini_cli():
-    """Gemini CLI'nin kurulu olup olmadığını kontrol eder"""
-    return shutil.which('gemini') is not None
+def _get_gemini_cli_path() -> Optional[str]:
+    """Gemini CLI'nin mevcut yolu döner (yoksa None)"""
+    return shutil.which('gemini')
 
 
 def _generate_gemini_output(json_data: str, prompt: str, use_flash: bool = False) -> Optional[str]:
@@ -2493,16 +2493,22 @@ def _generate_gemini_output(json_data: str, prompt: str, use_flash: bool = False
         prompt: Gemini'ye gönderilecek prompt
         use_flash: Flash modelini kullan (daha hızlı, daha düşük kalite)
     """
-    if not _check_gemini_cli():
+    gemini_path = _get_gemini_cli_path()
+    if not gemini_path:
         print("Hata: Gemini CLI bulunamadı. Lütfen 'gemini' komutunu kurun.", file=sys.stderr)
         return None
     
     try:
         # Gemini CLI'yi çağır
-        cmd = ['gemini']
+        extra_args: List[str] = []
         if use_flash:
-            cmd.extend(['-m', 'gemini-2.5-flash'])
-        cmd.extend(['-p', prompt])
+            extra_args.extend(['-m', 'gemini-2.5-flash'])
+        extra_args.extend(['-p', prompt])
+
+        if os.name == 'nt' and gemini_path.lower().endswith(('.cmd', '.bat')):
+            cmd = ['cmd.exe', '/c', gemini_path, *extra_args]
+        else:
+            cmd = [gemini_path, *extra_args]
         
         process = subprocess.Popen(
             cmd,
