@@ -41,22 +41,6 @@ eksisozluk-scraper "başlık" --output sonuclar.md
 eksisozluk-scraper "başlık" --delay 2 --max-retries 5 --retry-delay 10 --no-bkz
 ```
 
-## Çıktı Yapısı
-
-Her entry, `entry_number`, `has_external_url` ve `referenced_content` (entry/url/youtube detayları) alanlarıyla gelir. Harici linkler için trafilatura özetleri, YouTube için transkript ve kimlik bilgileri eklenir.
-
-```json
-{
-  "title": "the beatles",
-  "entry_id": "123456",
-  "content": "...",
-  "referenced_content": [
-    {"type": "entry", "title": "john lennon", "entry_id": "654321"},
-    {"type": "youtube", "url": "https://youtu.be/abc123xyz78"}
-  ]
-}
-```
-
 ## Gemini CLI
 
 - Kurulum: [geminicli.com](https://geminicli.com/)
