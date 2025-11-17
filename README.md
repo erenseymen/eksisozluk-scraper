@@ -11,6 +11,7 @@ Terminal tabanlı Ekşi Sözlük scraper'ı. JSON, CSV ve Markdown çıktıları
 
 ## Kurulum
 
+- **Pipx (önerilen)**: `pipx install eksisozluk-scraper` veya `pipx install git+https://github.com/erenseymen/eksisozluk-scraper.git`
 - Pip: `pip install eksisozluk-scraper` veya `pip install git+https://github.com/erenseymen/eksisozluk-scraper.git`
 - Kaynaktan: `git clone ... && pip install -r requirements.txt && python eksisozluk_scraper.py "başlık"`
 
