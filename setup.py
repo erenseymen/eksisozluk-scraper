@@ -163,7 +163,7 @@ class InstallWithCompletions(install):
 
 setup(
     name="eksisozluk-scraper",
-    version="2.1.0",
+    version="2.1.1",
     description="Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper",
     long_description=long_description,
     long_description_content_type="text/markdown",

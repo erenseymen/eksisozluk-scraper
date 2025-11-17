@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eksisozluk-scraper"
-version = "2.1.0"
+version = "2.1.1"
 description = "Ekşi Sözlük Scraper - AI-friendly output üreten terminal tabanlı scraper"
 readme = "README.md"
 requires-python = ">=3.8"
