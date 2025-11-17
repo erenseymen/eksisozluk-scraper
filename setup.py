@@ -172,7 +172,8 @@ setup(
     url="https://github.com/erenseymen/eksisozluk-scraper",
     py_modules=["eksisozluk_scraper"],
     python_requires=">=3.8",
-    install_requires=requirements,
+    # Dependencies are defined in pyproject.toml [project] dependencies
+    # install_requires is omitted to let setuptools read from pyproject.toml
     entry_points={
         "console_scripts": [
             "eksisozluk-scraper=eksisozluk_scraper:main",
