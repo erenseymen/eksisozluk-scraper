@@ -45,5 +45,5 @@ Issues = "https://github.com/erenseymen/eksisozluk-scraper/issues"
 py-modules = ["eksisozluk_scraper"]
 
 [tool.setuptools.package-data]
-"*" = ["completions/*.fish"]
+"*" = ["completions/*.fish", "completions/_*"]
 
