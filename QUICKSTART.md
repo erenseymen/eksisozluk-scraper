@@ -2,18 +2,7 @@
 
 ## Installation
 
-### Option 1: Debian Package (Recommended)
-
-```bash
-# Build the package
-make build-deb
-
-# Install
-sudo dpkg -i ../eksisozluk-scraper_*.deb
-sudo apt install -f  # Fix any missing dependencies
-```
-
-### Option 2: Python Package (Development)
+### Python Package
 
 ```bash
 # Install package (includes dependencies)
@@ -153,8 +142,6 @@ eksisozluk-scraper "https://eksisozluk.com/python--123456"
 If package installation fails with dependency errors:
 
 ```bash
-sudo apt install -f
-sudo apt install python3-pip
 pip3 install cloudscraper beautifulsoup4 argcomplete
 ```
 
