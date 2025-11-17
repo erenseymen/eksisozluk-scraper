@@ -2503,7 +2503,8 @@ def _generate_gemini_output(json_data: str, prompt: str, use_flash: bool = False
         extra_args: List[str] = []
         if use_flash:
             extra_args.extend(['-m', 'gemini-2.5-flash'])
-        extra_args.extend(['-p', prompt])
+        # Prompt'u positional argument olarak ekle (deprecated -p flag yerine)
+        extra_args.append(prompt)
 
         if os.name == 'nt' and gemini_path.lower().endswith(('.cmd', '.bat')):
             cmd = ['cmd.exe', '/c', gemini_path, *extra_args]
